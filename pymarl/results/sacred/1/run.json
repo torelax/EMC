@@ -1,0 +1,92 @@
+{
+  "artifacts": [],
+  "command": "my_main",
+  "experiment": {
+    "base_dir": "/home/hellone/Project/ReinforcementLearning/EpisodicCuriosity/EMC/pymarl/src",
+    "dependencies": [
+      "munch==2.3.2",
+      "numpy==1.15.4",
+      "PyYAML==3.13",
+      "sacred==0.8.2",
+      "torch==1.6.0"
+    ],
+    "mainfile": "main.py",
+    "name": "pymarl",
+    "repositories": [
+      {
+        "commit": "ff0b6d0b3247eea8853b28ce692b0d82c9b5fdb6",
+        "dirty": true,
+        "url": "git@github.com:kikojay/EMC"
+      },
+      {
+        "commit": "ff0b6d0b3247eea8853b28ce692b0d82c9b5fdb6",
+        "dirty": true,
+        "url": "git@github.com:kikojay/EMC"
+      },
+      {
+        "commit": "ff0b6d0b3247eea8853b28ce692b0d82c9b5fdb6",
+        "dirty": true,
+        "url": "git@github.com:kikojay/EMC"
+      }
+    ],
+    "sources": [
+      [
+        "main.py",
+        "_sources/main_c8895af9eb330878f84059cfdb4d2d07.py"
+      ],
+      [
+        "run.py",
+        "_sources/run_4cda1ba2b2ab15688345fca5f39750bc.py"
+      ],
+      [
+        "utils/logging.py",
+        "_sources/logging_3b02a0ca1f99104a2ae9682626005b14.py"
+      ]
+    ]
+  },
+  "heartbeat": "2023-02-19T14:00:10.812977",
+  "host": {
+    "ENV": {},
+    "cpu": "AMD Ryzen 9 5900X 12-Core Processor",
+    "hostname": "torelax",
+    "os": [
+      "Linux",
+      "Linux-5.15.0-60-generic-x86_64-with-debian-bookworm-sid"
+    ],
+    "python_version": "3.7.0"
+  },
+  "meta": {
+    "command": "my_main",
+    "options": {
+      "--beat-interval": null,
+      "--capture": null,
+      "--comment": null,
+      "--debug": false,
+      "--enforce_clean": false,
+      "--file_storage": null,
+      "--force": false,
+      "--help": false,
+      "--loglevel": null,
+      "--mongo_db": null,
+      "--name": null,
+      "--pdb": false,
+      "--print-config": false,
+      "--priority": null,
+      "--queue": false,
+      "--s3": null,
+      "--sql": null,
+      "--tiny_db": null,
+      "--unobserved": false,
+      "COMMAND": null,
+      "UPDATE": [
+        "env_args.map_name=reversed"
+      ],
+      "help": false,
+      "with": true
+    }
+  },
+  "resources": [],
+  "result": null,
+  "start_time": "2023-02-19T13:34:17.297930",
+  "status": "RUNNING"
+}
