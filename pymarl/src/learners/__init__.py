@@ -9,9 +9,8 @@ from .fast_q_learner import fast_QLearner
 
 from .qplex_curiosity_vdn_learner import QPLEX_curiosity_vdn_Learner
 
-
-
-
+from .hlevel_learner import HLevelLearner
+from .action_learner import ActionLearner
 
 REGISTRY = {}
 
@@ -26,6 +25,7 @@ REGISTRY["dmaq_qatten_learner"] = DMAQ_qattenLearner
 REGISTRY["fast_QLearner"] = fast_QLearner
 REGISTRY['qplex_curiosity_vdn_learner']=QPLEX_curiosity_vdn_Learner
 
-
+REGISTRY['hlevel_Learner'] = HLevelLearner
+REGISTRY['action_Learner'] = ActionLearner
 
 

@@ -1,17 +1,20 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-class HighLevel_SR(nn.moudle):
-    """
-    高层策略输入obs + (SR) 依据 <s, a, r, s', SR> 更新
-    目标: 最大E[R(s)]
-    每隔t-step输出一个子目标sub-goal
-    使用RNN?
-    """
-    def __init__(self, input_shape, args) -> None:
-        super(HighLevel_SR).__init__()
 
+
+class RNNFastLowAgent(nn.Module):
+    '''
+    原有基础上添加高层输出的目标作为输入
+    回报定义为 目标 和 实际到达状态的"距离"
+    '''
+
+    def __init__(self, input_shape, args):
+        '''
+        '''
+        super(RNNFastLowAgent, self).__init__()
         self.args = args
+
         self.fc1 = nn.Linear(input_shape, args.rnn_hidden_dim)
         # self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
         self.rnn = nn.GRU(

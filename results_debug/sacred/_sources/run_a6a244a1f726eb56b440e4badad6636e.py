@@ -118,13 +118,10 @@ def run_sequential(args, logger):
     args.state_shape = env_info["state_shape"]
     args.unit_dim = env_info["unit_dim"]
 
-    args.obs_shape = env_info["obs_shape"]
-
     # Default/Base scheme
     scheme = {
         "state": {"vshape": env_info["state_shape"]},
         "obs": {"vshape": env_info["obs_shape"], "group": "agents"},
-        "goals": {"vshape": env_info["obs_shape"], "group": "agents"},
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
@@ -151,7 +148,6 @@ def run_sequential(args, logger):
                                    preprocess=preprocess,
                                    device="cpu" if args.buffer_cpu_only else args.device)
 
-    # gridworld: is_batch_rl: false
     if args.is_batch_rl:
         assert (args.is_save_buffer == False)
         x_env_name = env_name
