@@ -124,7 +124,7 @@ def run_sequential(args, logger):
     scheme = {
         "state": {"vshape": env_info["state_shape"]},
         "obs": {"vshape": env_info["obs_shape"], "group": "agents"},
-        "goals": {"vshape": env_info["obs_shape"], "group": "agents"},
+        # "goals": {"vshape": env_info["obs_shape"], "group": "agents"},
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
@@ -220,6 +220,7 @@ def run_sequential(args, logger):
                 else:
                     episode_sample = buffer.sample(args.batch_size)
 
+                # is_batch_rl: false
                 if args.is_batch_rl:
                     runner.t_env += int(th.sum(episode_sample['filled']).cpu().clone().detach().numpy()) // args.batch_size
 

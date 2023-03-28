@@ -71,9 +71,8 @@ class EpisodeRunner:
 
         while not terminated:
 
-
-            for i in range(self.args.gener_goal_interval):
-                pass
+            # for i in range(self.args.gener_goal_interval):
+            #     pass
             # if self.t % self.args.gener_goal_interval == 0:
             #     goals = [self.mac.get_goal(self.env.get_obs())]
             if self.t % self.args.gener_goal_interval == 0:
@@ -84,7 +83,7 @@ class EpisodeRunner:
                 "avail_actions": [self.env.get_avail_actions()],
                 "obs": [self.env.get_obs()],
                 # 所有智能体的目标goal
-                "goals": goals
+                # "goals": goals
             }
 
             self.batch.update(pre_transition_data, ts=self.t)
@@ -139,17 +138,17 @@ class EpisodeRunner:
 
         cur_returns.append(episode_return)
 
-        if test_mode and (len(self.test_returns) == self.args.test_nepisode):
-            self._log(cur_returns, cur_stats, log_prefix)
-        elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
-            self._log(cur_returns, cur_stats, log_prefix)
-            if hasattr(self.mac.action_selector, "epsilon"):
-                self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
-            self.log_train_stats_t = self.t_env
+        # if test_mode and (len(self.test_returns) == self.args.test_nepisode):
+        #     self._log(cur_returns, cur_stats, log_prefix)
+        # elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
+        #     self._log(cur_returns, cur_stats, log_prefix)
+        #     if hasattr(self.mac.action_selector, "epsilon"):
+        #         self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
+        #     self.log_train_stats_t = self.t_env
 
         return self.batch
 
-    def _log(self, returns, stats, prefix):
+    """ def _log(self, returns, stats, prefix):
         self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.t_env)
         self.logger.log_stat(prefix + "return_std", np.std(returns), self.t_env)
         returns.clear()
@@ -157,4 +156,4 @@ class EpisodeRunner:
         for k, v in stats.items():
             if k != "n_episodes":
                 self.logger.log_stat(prefix + k + "_mean" , v/stats["n_episodes"], self.t_env)
-        stats.clear()
+        stats.clear() """

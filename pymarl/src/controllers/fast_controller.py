@@ -45,6 +45,7 @@ class FastMAC:
         else:
             agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
+        # agent_output_type = q
         # Softmax the agent outputs if they're policy logits
         if self.agent_output_type == "pi_logits":
 
@@ -68,13 +69,14 @@ class FastMAC:
                     # Zero out the unavailable actions
                     agent_outs[reshaped_avail_actions == 0] = 0.0
 
-        if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
+        """ if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
             return agent_outs.view(ep_batch.batch_size, self.n_agents, -1), individual_Q.view(ep_batch.batch_size, self.n_agents, -1)
+        else: """
+
+        if batch_inf:
+            return agent_outs.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
         else:
-            if batch_inf:
-                return agent_outs.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
-            else:
-                return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
+            return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
 
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
