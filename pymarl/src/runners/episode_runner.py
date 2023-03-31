@@ -29,10 +29,11 @@ class EpisodeRunner:
         # Log the first run
         self.log_train_stats_t = -1000000
 
-    def setup(self, scheme, groups, preprocess, mac):
+    def setup(self, scheme, groups, preprocess, mac, action_mac):
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
                                  preprocess=preprocess, device=self.args.device)
         self.mac = mac
+        self.action_mac = action_mac
 
     def get_env_info(self):
         return self.env.get_env_info()
@@ -61,6 +62,7 @@ class EpisodeRunner:
 
         return rewards
 
+    # todo HER
     def run(self, test_mode=False):
         self.reset()
 
@@ -74,8 +76,8 @@ class EpisodeRunner:
 
             for i in range(self.args.gener_goal_interval):
                 pass
-            # if self.t % self.args.gener_goal_interval == 0:
-            #     goals = [self.mac.get_goal(self.env.get_obs())]
+
+            # highlevel 输出 goal
             if self.t % self.args.gener_goal_interval == 0:
                 goals = self.mac.select_goals(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
 
@@ -92,12 +94,10 @@ class EpisodeRunner:
             # Pass the entire batch of experiences up till now to the agents
             # Receive the actions for each agent at this timestep in a batch of size 1
             
-            # highlevel 输出 goal
             # lowlevel agent 输出 action
-            actions = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
+            actions = self.action_mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
 
             
-
             reward, terminated, env_info = self.env.step(actions[0])
             next_state = self.env.get_state()
             # low_reward = self.env.cal_low_reward(goals, next_state)
@@ -108,7 +108,7 @@ class EpisodeRunner:
             post_transition_data = {
                 "actions": actions,
                 "reward": [(reward,)], # high_reward
-                # "low_reward": [(low_reward,)],
+                "low_reward": [(reward,)],
                 "terminated": [(terminated != env_info.get("episode_limit", False),)],
             }
 

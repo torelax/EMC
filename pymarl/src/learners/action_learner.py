@@ -35,6 +35,7 @@ class ActionLearner:
         # Get the relevant quantities
         rewards = batch["reward"][:, :-1]
         actions = batch["actions"][:, :-1]
+        goals = batch["goals"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
         # mask
         mask = batch["filled"][:, :-1].float()

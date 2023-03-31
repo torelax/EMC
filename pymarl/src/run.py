@@ -11,6 +11,9 @@ from os.path import dirname, abspath
 
 from learners import REGISTRY as le_REGISTRY
 from runners import REGISTRY as r_REGISTRY
+
+from runners import EpisodeRunner
+
 from controllers import REGISTRY as mac_REGISTRY
 from components.episode_buffer import ReplayBuffer
 from components.episode_buffer import Prioritized_ReplayBuffer
@@ -108,7 +111,7 @@ def save_one_buffer(args, save_buffer, env_name, from_start=False):
 def run_sequential(args, logger):
 
     # Init runner so we can get env info
-    runner = r_REGISTRY[args.runner](args=args, logger=logger)
+    runner : EpisodeRunner = r_REGISTRY[args.runner](args=args, logger=logger)
 
     # Set up schemes and groups here
     env_info = runner.get_env_info()
@@ -128,6 +131,7 @@ def run_sequential(args, logger):
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
+        "low_reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
     groups = {
@@ -165,13 +169,19 @@ def run_sequential(args, logger):
         ec_buffer=Episodic_memory_buffer(args,scheme)
 
     # Setup multiagent controller here
-    # fast_controller
+    # high level: hlevel_mac-->hlevel_controller-->HLevelMac
     mac = mac_REGISTRY[args.mac](buffer.scheme, groups, args)
+
+    # low level: llevel_mac-->level_controller
+    action_mac = mac_REGISTRY[args.action_mac](buffer.scheme, groups, args)
+
     # Give runner the scheme
     # runner = episode
-    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac)
+    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac, action_mac=action_mac)
     # Learner
     learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args, groups=groups)
+
+    action_learner = le_REGISTRY[args.actionlearner](action_mac, buffer.scheme, logger, args, groups=groups)
 
     if hasattr(args, "save_buffer") and args.save_buffer:
         learner.buffer = buffer
@@ -233,15 +243,19 @@ def run_sequential(args, logger):
                 # gridworld : use_emdqn: false
                 if args.is_prioritized_buffer:
                     if getattr(args, "use_emdqn", False):
-                        td_error = learner.train(episode_sample, runner.t_env, episode,ec_buffer=ec_buffer)
+                        td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
                     else:
                         td_error = learner.train(episode_sample, runner.t_env, episode)
+                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
                         buffer.update_priority(sample_indices, td_error)
                 else:
                     if getattr(args, "use_emdqn", False):
                         td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
                     else:
                         learner.train(episode_sample, runner.t_env, episode)
+                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
 
         # Execute test runs once in a while
         n_test_runs = max(1, args.test_nepisode // runner.batch_size)
@@ -263,11 +277,13 @@ def run_sequential(args, logger):
                     if episode_sample.device != args.device:
                         episode_sample.to(args.device)
                     learner.train(episode_sample, runner.t_env, episode, show_v=True)
+                    action_learner.train(episode_sample, runner.t_env, episode, show_v=True)
 
 
         if args.save_model and (runner.t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
             model_save_time = runner.t_env
             save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
+            actionmodel_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env), 'action')
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)
             if args.double_q:
@@ -298,6 +314,7 @@ def run_sequential(args, logger):
             # learner should handle saving/loading -- delegate actor save/load to mac,
             # use appropriate filenames to do critics, optimizer states
             learner.save_models(save_path)
+            action_learner.save_models(actionmodel_path)
 
         episode += args.batch_size_run * args.num_circle
 

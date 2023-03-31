@@ -19,6 +19,8 @@ agent_output_type: "q"
 # learner: "fast_QLearner"
 learner: "hlevel_Learner"
 
+actionlearner: "action_Learner"
+
 double_q: True
 # mixer: "vdn"
 mixer: "qmix"
@@ -39,6 +41,8 @@ save_buffer_path: "./results/heatmap/heatmap_buffer_0816/"
 
 # mac: "fast_mac"
 mac: "hlevel_mac"
+
+action_mac: "lowlevel_mac"
 
 agent: "rnn_fast"
 
