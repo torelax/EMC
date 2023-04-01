@@ -14,7 +14,7 @@ import yaml
 
 from run import run
 
-SETTINGS['CAPTURE_MODE'] = "fd" # set to "no" if you want to see stdout/stderr in console
+SETTINGS['CAPTURE_MODE'] = "no" # set to "no" if you want to see stdout/stderr in console
 logger = get_logger()
 
 ex = Experiment('pymarl')
@@ -70,6 +70,8 @@ def _get_config_alg(params, arg_name, subfolder,map_name):
         config_name="EMC_toygame"
     elif map_name=="reversed":
         config_name="EMC_toygame"
+    elif map_name=="grid_goal":
+        config_name="EMC_hlevel"
 
 
     
@@ -138,5 +140,6 @@ if __name__ == '__main__':
     file_obs_path = os.path.join(results_path, "sacred")
     ex.observers.append(FileStorageObserver.create(file_obs_path))
 
+    print('run_commandline\n')
     ex.run_commandline(params)
 

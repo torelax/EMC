@@ -50,28 +50,28 @@ class HLevelMAC:
             return goal_outs.view(ep_batch.batch_size, self.n_agents, -1)
 
     def init_hidden(self, batch_size):
-        self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
+        self.hidden_states = self.hlevel.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
 
     def parameters(self):
-        return self.agent.parameters()
+        return self.hlevel.parameters()
 
     def load_state(self, other_mac):
-        self.agent.load_state_dict(other_mac.agent.state_dict())
+        self.hlevel.load_state_dict(other_mac.agent.state_dict())
 
     def cuda(self):
-        self.agent.cuda()
+        self.hlevel.cuda()
 
     def to(self, *args, **kwargs):
-        self.agent.to(*args, **kwargs)
+        self.hlevel.to(*args, **kwargs)
 
     def save_models(self, path):
-        th.save(self.agent.state_dict(), "{}/agent.th".format(path))
+        th.save(self.hlevel.state_dict(), "{}/agent.th".format(path))
 
     def load_models(self, path):
-        self.agent.load_state_dict(th.load("{}/agent.th".format(path), map_location=lambda storage, loc: storage))
+        self.hlevel.load_state_dict(th.load("{}/agent.th".format(path), map_location=lambda storage, loc: storage))
 
     def _build_agents(self, input_shape):
-        self.agent = agent_REGISTRY[self.args.agent](input_shape, self.args)
+        self.hlevel = agent_REGISTRY[self.args.agent](input_shape, self.args)
 
     def _build_hlevel(self, input_shape):
         self.hlevel = hlevel_REGISTRY[self.args.hlevel](input_shape, self.args)

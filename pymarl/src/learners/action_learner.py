@@ -11,7 +11,7 @@ from controllers.llevel_controller import LLevelMAC
 import numpy as np
 
 class ActionLearner:
-    def __init__(self, mac : LLevelMAC, scheme, logger, args):
+    def __init__(self, mac : LLevelMAC, scheme, logger, args, groups=None):
         self.args = args
         self.mac = mac
         self.logger = logger

@@ -29,6 +29,7 @@ import random
 def run(_run, _config, _log):
 
     # check args sanity
+    print('Run.....................')
     _config = args_sanity_check(_config, _log)
 
     args = SN(**_config)

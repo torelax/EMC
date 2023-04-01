@@ -9,7 +9,7 @@ class HighLevelNoSR(nn.Module):
     使用RNN
     """
     def __init__(self, input_shape, args) -> None:
-        super(HighLevelNoSR).__init__()
+        super(HighLevelNoSR, self).__init__()
 
         self.args = args
         self.fc1 = nn.Linear(input_shape, args.rnn_hidden_dim)

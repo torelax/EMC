@@ -88,6 +88,7 @@ class EpisodeRunner:
             if self.t % self.args.gener_goal_interval == 0:
                 goals = self.mac.select_goals(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
 
+            print(goals.shape)
             pre_transition_data = {
                 "state": [self.env.get_state()],
                 "avail_actions": [self.env.get_avail_actions()],
@@ -95,7 +96,9 @@ class EpisodeRunner:
                 # 所有智能体的目标goal
                 "goals": goals
             }
-
+            print(self.env.get_obs())
+            print(np.array(self.env.get_state()).shape)
+            print(np.array(self.env.get_obs()).shape)
             self.batch.update(pre_transition_data, ts=self.t)
 
             # Pass the entire batch of experiences up till now to the agents

@@ -11,7 +11,7 @@ from controllers.hlevel_controller import HLevelMAC
 import numpy as np
 
 class HLevelLearner:
-    def __init__(self, mac, scheme, logger, args):
+    def __init__(self, mac, scheme, logger, args, groups=None):
         self.args = args
         self.mac : HLevelMAC = mac
         self.logger = logger

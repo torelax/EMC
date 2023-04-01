@@ -26,6 +26,7 @@ double_q: True
 mixer: "qmix"
 gamma: 0.9
 
+mixing_embed_dim: 32
 
 curiosity_scale: 0.2
 curiosity_decay: True
@@ -36,13 +37,13 @@ curiosity_decay_stop: 0.01
 
 save_buffer: False
 save_buffer_cycle: 500
-save_buffer_path: "./results/heatmap/heatmap_buffer_0816/"
+save_buffer_path: "./results/heatmap/heatmap_buffer_0401/"
 
 
 # mac: "fast_mac"
 mac: "hlevel_mac"
 
-action_mac: "lowlevel_mac"
+action_mac: "llevel_mac"
 
 agent: "rnn_fast_low"
 
