@@ -44,9 +44,11 @@ mac: "hlevel_mac"
 
 action_mac: "lowlevel_mac"
 
-agent: "rnn_fast"
+agent: "rnn_fast_low"
 
 hlevel: "hlevel_nosr"
+
+input_last_goal: False
 
 is_prioritized_buffer: True
 

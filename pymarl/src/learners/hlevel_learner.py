@@ -6,12 +6,14 @@ import torch as th
 from torch.optim import RMSprop
 from utils.torch_utils import to_cuda
 
+from controllers.hlevel_controller import HLevelMAC
+
 import numpy as np
 
 class HLevelLearner:
     def __init__(self, mac, scheme, logger, args):
         self.args = args
-        self.mac = mac
+        self.mac : HLevelMAC = mac
         self.logger = logger
 
         self.params = list(mac.parameters())

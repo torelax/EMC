@@ -10,7 +10,8 @@ class HLevelMAC:
         self.n_agents = args.n_agents
         self.args = args
         self.input_shape = self._get_input_shape(scheme)
-        self._build_agents(self.input_shape) # self.agent
+        # self._build_agents(self.input_shape) # self.agent
+        # todo 高层策略RNN网络加入上一时刻的g
         self._build_hlevel(self.input_shape) # self.hlevel
         self.agent_output_type = args.agent_output_type
 
@@ -29,7 +30,7 @@ class HLevelMAC:
         return chosen_actions
     
     # avaliable goals
-    def select_goals(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):
+    def select_goals(self, ep_batch, t_ep, t_env=None, bs=slice(None), test_mode=False):
         # avail_actions = ep_batch["avail_actions"][:, t_ep]
         if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
             goal_outputs,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
@@ -75,21 +76,32 @@ class HLevelMAC:
     def _build_hlevel(self, input_shape):
         self.hlevel = hlevel_REGISTRY[self.args.hlevel](input_shape, self.args)
 
+
     def _build_inputs(self, batch, t, batch_inf):
+        """
+        ## todo 
+            加入上一时刻的goal
+        """
+        tdn = self.args.gener_goal_interval
         # Assumes homogenous agents with flat observations.
         # Other MACs might want to e.g. delegate building inputs to each agent
         if batch_inf:
             bs = batch.batch_size
             inputs = []
-            inputs.append(batch["obs"][:, :t])  # bTav
-            if self.args.obs_last_action:
-                last_actions = th.zeros_like(batch["actions_onehot"][:, :t])
-                last_actions[:, 1:] = batch["actions_onehot"][:, :t-1]
-                inputs.append(last_actions)
-            if self.args.obs_agent_id:
-                inputs.append(th.eye(self.n_agents, device=batch.device).view(1, 1, self.n_agents, self.n_agents).expand(bs, t, -1, -1))
+            inputs.append(batch["obs"][:, :t:tdn])  # bTav
+            # current False
+            if self.args.input_last_goal:
+                last_goals = th.zero_like(batch["goals"][:,:t:tdn])
+                last_goals[:, 1:] = batch["goals"][:, :t-tdn:tdn]
+                inputs.append(last_goals)
+            # if self.args.obs_last_action:
+            #     last_actions = th.zeros_like(batch["actions_onehot"][:, :t:tdn])
+            #     last_actions[:, 1:] = batch["actions_onehot"][:, :t-1:tdn]
+            #     inputs.append(last_actions)
+            # if self.args.obs_agent_id:
+            #     inputs.append(th.eye(self.n_agents, device=batch.device).view(1, 1, self.n_agents, self.n_agents).expand(bs, t, -1, -1))
 
-            inputs = th.cat([x.transpose(1, 2).reshape(bs*self.n_agents, t, -1) for x in inputs], dim=2)
+            inputs = th.cat([x.transpose(1, 2).reshape(bs*self.n_agents, t // tdn, -1) for x in inputs], dim=2)
             return inputs
         else:
             bs = batch.batch_size

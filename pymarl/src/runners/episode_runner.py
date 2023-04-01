@@ -3,6 +3,10 @@ from functools import partial
 from components.episode_buffer import EpisodeBatch
 import numpy as np
 
+from envs.GridworldEnv import GridworldEnv
+from controllers.hlevel_controller import HLevelMAC
+from controllers.llevel_controller import LLevelMAC
+
 
 class EpisodeRunner:
 
@@ -15,7 +19,7 @@ class EpisodeRunner:
         if 'stag_hunt' in self.args.env:
             self.env = env_REGISTRY[self.args.env](env_args=self.args.env_args, args=args)
         else:
-            self.env = env_REGISTRY[self.args.env](**self.args.env_args)
+            self.env : GridworldEnv = env_REGISTRY[self.args.env](**self.args.env_args)
         self.episode_limit = self.env.episode_limit
         self.t = 0
 
@@ -32,8 +36,8 @@ class EpisodeRunner:
     def setup(self, scheme, groups, preprocess, mac, action_mac):
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
                                  preprocess=preprocess, device=self.args.device)
-        self.mac = mac
-        self.action_mac = action_mac
+        self.mac : HLevelMAC = mac
+        self.action_mac : LLevelMAC = action_mac
 
     def get_env_info(self):
         return self.env.get_env_info()
@@ -49,16 +53,19 @@ class EpisodeRunner:
         self.env.reset()
         self.t = 0
 
-    def cal_low_reward(self, goals, states, SR=None):
+    def cal_low_reward(self, goals, obs, SR=None):
         '''
         states: 或许是obs更合适
         '''
-
+        rewards = []
         if SR:
-            rewards = [SR[states][goals]]
+            rewards = [SR[obs][goals]]
 
         else: # 之间计算goal 和 state的距离
-            rewards = [goals - states]
+            for i in range(self.env.n_agents):
+                # rewards.append()
+                reward = -abs(goals[i] - obs[i])
+                rewards.append(reward)
 
         return rewards
 
@@ -96,19 +103,22 @@ class EpisodeRunner:
             
             # lowlevel agent 输出 action
             actions = self.action_mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
-
+            
             
             reward, terminated, env_info = self.env.step(actions[0])
             next_state = self.env.get_state()
+            next_obs = self.env.get_obs()
+            # low reward底层回报 每个agent获得一个
+            low_reward = [self.cal_low_reward(goals[0], next_obs)]
             # low_reward = self.env.cal_low_reward(goals, next_state)
-            low_reward = []
+            
 
             episode_return += reward
 
             post_transition_data = {
                 "actions": actions,
                 "reward": [(reward,)], # high_reward
-                "low_reward": [(reward,)],
+                "low_reward": low_reward,
                 "terminated": [(terminated != env_info.get("episode_limit", False),)],
             }
 

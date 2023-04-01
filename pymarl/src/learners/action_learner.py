@@ -6,12 +6,12 @@ import torch as th
 from torch.optim import RMSprop
 from utils.torch_utils import to_cuda
 
-from controllers.fast_controller import FastMAC
+from controllers.llevel_controller import LLevelMAC
 
 import numpy as np
 
 class ActionLearner:
-    def __init__(self, mac : FastMAC, scheme, logger, args):
+    def __init__(self, mac : LLevelMAC, scheme, logger, args):
         self.args = args
         self.mac = mac
         self.logger = logger
@@ -33,7 +33,7 @@ class ActionLearner:
     # ActionLearner 地层动作策略 就是个适用离散动作空间的 DQN 
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int, show_demo=False, save_data=None, show_v=False):
         # Get the relevant quantities
-        rewards = batch["reward"][:, :-1]
+        rewards = batch["low_reward"][:, :-1]
         actions = batch["actions"][:, :-1]
         goals = batch["goals"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()

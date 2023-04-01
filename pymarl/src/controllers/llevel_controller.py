@@ -93,7 +93,7 @@ class LLevelMAC:
         self.agent = agent_REGISTRY[self.args.agent](input_shape, self.args)
 
     def _build_hlevel(self, input_shape):
-        self.hlevel = agent_REGISTRY[self.args.agent](input_shape, self.args)
+        self.hlevel = agent_REGISTRY[self.args.hlevel](input_shape, self.args)
 
     def _build_inputs(self, batch, t, batch_inf):
         # Assumes homogenous agents with flat observations.
