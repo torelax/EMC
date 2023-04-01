@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-class HighLevelNoSR(nn.moudle):
+class HighLevelNoSR(nn.Module):
     """
     不带 SR 的版本 高层直接输出 goal
     目标: 最大E[R(s)]

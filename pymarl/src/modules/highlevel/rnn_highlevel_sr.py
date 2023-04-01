@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-class HighLevelSR(nn.moudle):
+class HighLevelSR(nn.Module):
     """
     高层策略输入obs + (SR) 依据 <s, a, r, s', SR> 更新
     目标: 最大E[R(s)]
