@@ -124,19 +124,20 @@ def run_sequential(args, logger):
 
     args.obs_shape = env_info["obs_shape"]
 
-    args.goal_shape = env_info["obs_shape"]
+    args.goal_shape = env_info["goal_shape"]
 
     # Default/Base scheme
     scheme = {
-        "state": {"vshape": env_info["state_shape"]},
-        "obs": {"vshape": env_info["obs_shape"], "group": "agents"},
-        "goals": {"vshape": env_info["obs_shape"], "group": "agents"},
-        "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
+        "state": {"vshape": env_info["state_shape"]},  # 92
+        "obs": {"vshape": env_info["obs_shape"], "group": "agents"}, # 46
+        "goals": {"vshape": env_info["goal_shape"], "group": "agents"}, # 23
+        "actions": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 2
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
         "low_reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
+    print()
     groups = {
         "agents": args.n_agents
     }

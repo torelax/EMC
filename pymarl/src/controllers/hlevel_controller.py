@@ -43,11 +43,13 @@ class HLevelMAC:
         #     print(ep_batch[k].shape)
         agent_inputs = self._build_inputs(ep_batch, t, batch_inf)
 
+        # 期望输入 1, 2, 23 观测  --> 1, 1, 46
         print('final input shape: ', agent_inputs.shape)
         epi_len = t if batch_inf else 1
 
         goal_outs, self.hidden_states = self.hlevel(agent_inputs, self.hidden_states)
 
+        # 期望输出 1, 1, 46 --> 1, 2, 23
         print('goal shape1: ', goal_outs.shape)
 
         if batch_inf:
@@ -112,7 +114,9 @@ class HLevelMAC:
         else:
             bs = batch.batch_size
             inputs = []
+            # (b, 31, 2, 46)
             inputs.append(batch["obs"][:, t])  # b1av
+            # (b, 1, 2, 46) -- (b, 2, 46)
             # print('input append: ', batch['obs'].shape)
             # print('input append: ', batch['obs'][:, t].shape)
             if self.args.obs_last_action:
@@ -123,7 +127,7 @@ class HLevelMAC:
             if self.args.obs_agent_id:
                 inputs.append(th.eye(self.n_agents, device=batch.device).unsqueeze(0).expand(bs, -1, -1))
 
-            inputs = th.cat([x.reshape(bs*self.n_agents, 1, -1) for x in inputs], dim=2)
+            inputs = th.cat([x.reshape(bs * self.n_agents, 1, -1) for x in inputs], dim=2)
             return inputs
 
     def _get_input_shape(self, scheme):

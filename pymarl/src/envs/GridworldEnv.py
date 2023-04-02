@@ -11,6 +11,7 @@ class GridworldEnv:
         self.noise_num = noise_num
         self.rows, self.cols = input_rows, input_cols
         self.obs_shape = (self.rows + self.cols) * 2 + int(self.noise) * self.noise_num
+        self.goal_shape = (self.rows + self.cols)
         self.state_shape = self.obs_shape * 2
         self._episode_steps = 0
         self.episode_limit = episode_limit
@@ -48,6 +49,7 @@ class GridworldEnv:
     def get_env_info(self):
         return {'state_shape': self.state_shape,
                 'obs_shape': self.obs_shape,
+                'goal_shape': self.goal_shape,
                 'episode_limit': self.episode_limit,
                 'n_agents': self.n_agents,
                 'n_actions': self.n_actions,

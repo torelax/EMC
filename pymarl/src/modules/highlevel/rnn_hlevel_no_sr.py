@@ -20,7 +20,7 @@ class HighLevelNoSR(nn.Module):
             hidden_size=args.rnn_hidden_dim,
             batch_first=True
         )
-        self.fc2 = nn.Linear(args.rnn_hidden_dim, args.n_agents * args.obs_shape)
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, args.goal_shape)
 
     def init_hidden(self):
         # make hidden states on same device as model
@@ -41,5 +41,5 @@ class HighLevelNoSR(nn.Module):
         x = x.reshape(bs * epi_len, self.args.rnn_hidden_dim)
         q = self.fc2(x)
         # 对n个状态s/观察obs输出Q(g, a)
-        q = q.reshape(bs, epi_len, self.args.n_agents * self.args.obs_shape)
+        q = q.reshape(bs, epi_len, self.args.goal_shape)
         return q, h

@@ -7,6 +7,7 @@ from envs.GridworldEnv import GridworldEnv
 from controllers.hlevel_controller import HLevelMAC
 from controllers.llevel_controller import LLevelMAC
 
+import torch as th
 
 class EpisodeRunner:
 
@@ -80,28 +81,27 @@ class EpisodeRunner:
 
         while not terminated:
 
-
             for i in range(self.args.gener_goal_interval):
                 pass
-
-            # print(self.batch.data.transition_data['goals'].shape)
 
             # highlevel 输出 goal
             if self.t % self.args.gener_goal_interval == 0:
                 goals = self.mac.select_goals(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
 
-            print(goals[0][0].shape)  # 1, 2, 92
-            print('goals: ', goals)
+            print('goals: ', goals.shape) # 1,2,46
 
             pre_transition_data = {
                 "state": [self.env.get_state()],
                 "avail_actions": [self.env.get_avail_actions()],
                 "obs": [self.env.get_obs()],
                 # 所有智能体的目标goal
-                "goals": goals[0][0]
+                "goals": goals  # 预期 1, 2, 23
             }
+
             # get_obs() --> (2, 23)
-            # print(self.env.obs_shape)  # 46
+            # print('trans data[\'obs\']', th.tensor([self.env.get_obs()]).shape)  # 1, 2, 23
+            # print('trans data[\'avail_actions\']', th.tensor([self.env.get_avail_actions()]).shape)  # 1, 2, 5
+
             # print(self.env.state_shape) # 92
             print('state shape: ', self.env.get_state().shape)
 
