@@ -39,10 +39,16 @@ class HLevelMAC:
         return goal_outputs
 
     def forward(self, ep_batch, t, test_mode=False, batch_inf=False):
+        # for k in ep_batch:
+        #     print(ep_batch[k].shape)
         agent_inputs = self._build_inputs(ep_batch, t, batch_inf)
+
+        print('final input shape: ', agent_inputs.shape)
         epi_len = t if batch_inf else 1
 
         goal_outs, self.hidden_states = self.hlevel(agent_inputs, self.hidden_states)
+
+        print('goal shape1: ', goal_outs.shape)
 
         if batch_inf:
             return goal_outs.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
@@ -79,10 +85,10 @@ class HLevelMAC:
 
     def _build_inputs(self, batch, t, batch_inf):
         """
-        ## todo 
+        ### todo 
             加入上一时刻的goal
         """
-        tdn = self.args.gener_goal_interval
+        tdn = self.args.gener_goal_interval // 2
         # Assumes homogenous agents with flat observations.
         # Other MACs might want to e.g. delegate building inputs to each agent
         if batch_inf:
@@ -107,6 +113,8 @@ class HLevelMAC:
             bs = batch.batch_size
             inputs = []
             inputs.append(batch["obs"][:, t])  # b1av
+            # print('input append: ', batch['obs'].shape)
+            # print('input append: ', batch['obs'][:, t].shape)
             if self.args.obs_last_action:
                 if t == 0:
                     inputs.append(th.zeros_like(batch["actions_onehot"][:, t]))
@@ -119,10 +127,12 @@ class HLevelMAC:
             return inputs
 
     def _get_input_shape(self, scheme):
-        input_shape = scheme["obs"]["vshape"]
+        input_shape = scheme["obs"]["vshape"] # 46
+        if self.args.input_last_goal:
+            input_shape += scheme["goals"]['vshape'] # 46
         if self.args.obs_last_action:
-            input_shape += scheme["actions_onehot"]["vshape"][0]
-        if self.args.obs_agent_id:
+            input_shape += scheme["actions_onehot"]["vshape"][0] # 5
+        if self.args.obs_agent_id: # 2
             input_shape += self.n_agents
 
         return input_shape

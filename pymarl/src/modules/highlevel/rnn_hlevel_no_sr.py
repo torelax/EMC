@@ -28,7 +28,7 @@ class HighLevelNoSR(nn.Module):
 
     def forward(self, inputs, hidden_state):
         '''
-        Return: [batch, n-agent's state]
+        Return: [batch, n-agent's goals]
         '''
         bs = inputs.shape[0]    # batch size
         epi_len = inputs.shape[1]   # episode lenth?

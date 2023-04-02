@@ -124,6 +124,8 @@ def run_sequential(args, logger):
 
     args.obs_shape = env_info["obs_shape"]
 
+    args.goal_shape = env_info["obs_shape"]
+
     # Default/Base scheme
     scheme = {
         "state": {"vshape": env_info["state_shape"]},
