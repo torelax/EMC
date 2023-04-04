@@ -9,8 +9,7 @@ class FastMAC:
         self.n_agents = args.n_agents
         self.args = args
         self.input_shape = self._get_input_shape(scheme)
-        self._build_agents(self.input_shape) # self.agent
-        self._build_hlevel(self.input_shape) # self.hlevel
+        self._build_agents(self.input_shape)
         self.agent_output_type = args.agent_output_type
 
         self.action_selector = action_REGISTRY[args.action_selector](args)
@@ -26,15 +25,6 @@ class FastMAC:
             agent_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode)
         chosen_actions = self.action_selector.select_action(agent_outputs[bs], avail_actions[bs], t_env, test_mode=test_mode)
         return chosen_actions
-    
-    # avaliable goals
-    def select_goals(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):
-        # avail_actions = ep_batch["avail_actions"][:, t_ep]
-        if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
-            goal_outputs,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        else:
-            goal_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        return goal_outputs
 
     def forward(self, ep_batch, t, test_mode=False, batch_inf=False):
         agent_inputs = self._build_inputs(ep_batch, t, batch_inf)
@@ -45,7 +35,6 @@ class FastMAC:
         else:
             agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
-        # agent_output_type = q
         # Softmax the agent outputs if they're policy logits
         if self.agent_output_type == "pi_logits":
 
@@ -69,14 +58,13 @@ class FastMAC:
                     # Zero out the unavailable actions
                     agent_outs[reshaped_avail_actions == 0] = 0.0
 
-        """ if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
+        if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
             return agent_outs.view(ep_batch.batch_size, self.n_agents, -1), individual_Q.view(ep_batch.batch_size, self.n_agents, -1)
-        else: """
-
-        if batch_inf:
-            return agent_outs.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
         else:
-            return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
+            if batch_inf:
+                return agent_outs.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
+            else:
+                return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
 
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
@@ -101,9 +89,6 @@ class FastMAC:
 
     def _build_agents(self, input_shape):
         self.agent = agent_REGISTRY[self.args.agent](input_shape, self.args)
-
-    def _build_hlevel(self, input_shape):
-        self.hlevel = agent_REGISTRY[self.args.agent](input_shape, self.args)
 
     def _build_inputs(self, batch, t, batch_inf):
         # Assumes homogenous agents with flat observations.
@@ -144,7 +129,3 @@ class FastMAC:
             input_shape += self.n_agents
 
         return input_shape
-    
-    def get_goal(obs=None):
-
-        return []

@@ -8,9 +8,6 @@ from .rnd_state_predictor import RND_state_predictor
 from .rnd_predictor import RNDpredictor
 from .fast_rnd_predictor import RNDfastpredictor
 
-from .hlevel_controller import HLevelMAC
-from .llevel_controller import LLevelMAC
-
 REGISTRY["basic_mac"] = BasicMAC
 REGISTRY["fast_mac"] = FastMAC
 REGISTRY["mmdp_mac"] = MMDPMAC
@@ -19,6 +16,3 @@ REGISTRY["nn_predict"] = RND_state_predictor
 
 REGISTRY["predict"] = RNDpredictor
 REGISTRY["fast_predict"] = RNDfastpredictor
-
-REGISTRY["hlevel_mac"] = HLevelMAC
-REGISTRY["llevel_mac"] = LLevelMAC

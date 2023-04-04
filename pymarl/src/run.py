@@ -11,9 +11,6 @@ from os.path import dirname, abspath
 
 from learners import REGISTRY as le_REGISTRY
 from runners import REGISTRY as r_REGISTRY
-
-from runners import EpisodeRunner
-
 from controllers import REGISTRY as mac_REGISTRY
 from components.episode_buffer import ReplayBuffer
 from components.episode_buffer import Prioritized_ReplayBuffer
@@ -29,7 +26,6 @@ import random
 def run(_run, _config, _log):
 
     # check args sanity
-    print('Run.....................')
     _config = args_sanity_check(_config, _log)
 
     args = SN(**_config)
@@ -112,7 +108,7 @@ def save_one_buffer(args, save_buffer, env_name, from_start=False):
 def run_sequential(args, logger):
 
     # Init runner so we can get env info
-    runner : EpisodeRunner = r_REGISTRY[args.runner](args=args, logger=logger)
+    runner = r_REGISTRY[args.runner](args=args, logger=logger)
 
     # Set up schemes and groups here
     env_info = runner.get_env_info()
@@ -122,22 +118,15 @@ def run_sequential(args, logger):
     args.state_shape = env_info["state_shape"]
     args.unit_dim = env_info["unit_dim"]
 
-    args.obs_shape = env_info["obs_shape"]
-
-    args.goal_shape = env_info["goal_shape"]
-
     # Default/Base scheme
     scheme = {
-        "state": {"vshape": env_info["state_shape"]},  # 92
-        "obs": {"vshape": env_info["obs_shape"], "group": "agents"}, # 46
-        "goals": {"vshape": env_info["goal_shape"], "group": "agents"}, # 23
-        "actions": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 2
+        "state": {"vshape": env_info["state_shape"]},
+        "obs": {"vshape": env_info["obs_shape"], "group": "agents"},
+        "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
-        "low_reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
-    print()
     groups = {
         "agents": args.n_agents
     }
@@ -146,20 +135,26 @@ def run_sequential(args, logger):
     }
 
     env_name = args.env
-    # is_prioritized_buffer: true
-    buffer = Prioritized_ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
-                                        args.prioritized_buffer_alpha,
-                                        preprocess=preprocess,
-                                        device="cpu" if args.buffer_cpu_only else args.device)
-    
-    # is_save_buffer: false
+    if env_name == 'sc2':
+        env_name += '/' + args.env_args['map_name']
+
+    if args.is_prioritized_buffer:
+        buffer = Prioritized_ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+                                          args.prioritized_buffer_alpha,
+                                          preprocess=preprocess,
+                                          device="cpu" if args.buffer_cpu_only else args.device)
+    else:
+        buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+                              args.burn_in_period,
+                              preprocess=preprocess,
+                              device="cpu" if args.buffer_cpu_only else args.device)
+
     if args.is_save_buffer:
         save_buffer = ReplayBuffer(scheme, groups, args.save_buffer_size, env_info["episode_limit"] + 1,
                                    args.burn_in_period,
                                    preprocess=preprocess,
                                    device="cpu" if args.buffer_cpu_only else args.device)
 
-    # gridworld: is_batch_rl: false
     if args.is_batch_rl:
         assert (args.is_save_buffer == False)
         x_env_name = env_name
@@ -172,20 +167,23 @@ def run_sequential(args, logger):
     if getattr(args, "use_emdqn", False):
         ec_buffer=Episodic_memory_buffer(args,scheme)
 
+
+
     # Setup multiagent controller here
-    # high level: hlevel_mac-->hlevel_controller-->HLevelMac
     mac = mac_REGISTRY[args.mac](buffer.scheme, groups, args)
 
-    # low level: llevel_mac-->level_controller
-    action_mac = mac_REGISTRY[args.action_mac](buffer.scheme, groups, args)
-
     # Give runner the scheme
-    # runner = episode
-    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac, action_mac=action_mac)
-    # Learner
-    learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args, groups=groups)
+    if args.runner != 'offpolicy':
+        runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac)
 
-    action_learner = le_REGISTRY[args.actionlearner](action_mac, buffer.scheme, logger, args, groups=groups)
+    # Learner
+    if args.learner=="fast_QLearner" or args.learner=="qplex_curiosity_vdn_learner":
+        learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args, groups=groups)
+    else:
+        learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args)
+
+    if args.runner == 'offpolicy':
+        runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac, test_mac=learner.extrinsic_mac)
 
     if hasattr(args, "save_buffer") and args.save_buffer:
         learner.buffer = buffer
@@ -193,7 +191,39 @@ def run_sequential(args, logger):
     if args.use_cuda:
         learner.cuda()
 
-    
+    if args.checkpoint_path != "":
+
+        timesteps = []
+        timestep_to_load = 0
+
+        if not os.path.isdir(args.checkpoint_path):
+            logger.console_logger.info("Checkpoint directiory {} doesn't exist".format(args.checkpoint_path))
+            return
+
+        # Go through all files in args.checkpoint_path
+        for name in os.listdir(args.checkpoint_path):
+            full_name = os.path.join(args.checkpoint_path, name)
+            # Check if they are dirs the names of which are numbers
+            if os.path.isdir(full_name) and name.isdigit():
+                timesteps.append(int(name))
+
+        if args.load_step == 0:
+            # choose the max timestep
+            timestep_to_load = max(timesteps)
+        else:
+            # choose the timestep closest to load_step
+            timestep_to_load = min(timesteps, key=lambda x: abs(x - args.load_step))
+
+        model_path = os.path.join(args.checkpoint_path, str(timestep_to_load))
+
+        logger.console_logger.info("Loading model from {}".format(model_path))
+        learner.load_models(model_path)
+        runner.t_env = timestep_to_load
+
+        if args.evaluate or args.save_replay:
+            evaluate_sequential(args, runner)
+            return
+
     # start training
     episode = 0
     last_test_T = -args.test_interval - 1
@@ -205,18 +235,20 @@ def run_sequential(args, logger):
 
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
 
+    if args.env == 'matrix_game_1' or args.env == 'matrix_game_2' or args.env == 'matrix_game_3' \
+            or args.env == 'mmdp_game_1':
+        last_demo_T = -args.demo_interval - 1
+
     while runner.t_env <= args.t_max:
 
-        # is_bach_rl: false
         if not args.is_batch_rl:
             # Run for a whole episode at a time
-            # batch 带上 goal
             episode_batch = runner.run(test_mode=False)
             if getattr(args, "use_emdqn", False):
                 ec_buffer.update_ec(episode_batch)
             buffer.insert_episode_batch(episode_batch)
 
-            # is_save_buffer: false
+
             if args.is_save_buffer:
                 save_buffer.insert_episode_batch(episode_batch)
                 if save_buffer.is_from_start and save_buffer.episodes_in_buffer == save_buffer.buffer_size:
@@ -226,7 +258,6 @@ def run_sequential(args, logger):
                 if save_buffer.buffer_index % args.save_buffer_interval == 0:
                     print('current episodes_in_buffer: ', save_buffer.episodes_in_buffer)
 
-        # num_circle: 1
         for _ in range(args.num_circle):
             if buffer.can_sample(args.batch_size):
                 if args.is_prioritized_buffer:
@@ -234,33 +265,69 @@ def run_sequential(args, logger):
                 else:
                     episode_sample = buffer.sample(args.batch_size)
 
-                # is_batch_rl: false
                 if args.is_batch_rl:
                     runner.t_env += int(th.sum(episode_sample['filled']).cpu().clone().detach().numpy()) // args.batch_size
 
-                # Truncate batch to only filled timesteps
-                max_ep_t = episode_sample.max_t_filled()
-                episode_sample = episode_sample[:, :max_ep_t]
+                if args.env == 'matrix_game_2' or args.env == 'matrix_game_3':
+                    for t in range(args.batch_size):
+                        i = t % (args.n_actions ** 2) // args.n_actions
+                        j = t % args.n_actions
+                        new_actions = th.Tensor([i, j]).unsqueeze(0).repeat(args.episode_limit + 1, 1)
+                        # Truncate batch to only filled timesteps
+                        max_ep_t = episode_sample.max_t_filled()
+                        episode_sample = episode_sample[:, :max_ep_t]
+                        episode_sample['actions'][t, :, :, 0] = new_actions
+                        if i == 0 and j == 0:
+                            rew = th.Tensor([8, ])
+                        elif i == 0 or j == 0:
+                            rew = th.Tensor([-12, ])
+                        else:
+                            rew = th.Tensor([0, ])
+                        if args.env == 'matrix_game_3':
+                            if i == 1 and j == 1 or i == 2 and j == 2:
+                                rew = th.Tensor([6, ])
+                        episode_sample['reward'][t, 0, 0] = rew
+                    new_actions_onehot = to_cuda(th.zeros(
+                        episode_sample['actions'].squeeze(3).shape + (args.n_actions,)), self.args.device)
+                    new_actions_onehot = new_actions_onehot.scatter_(3, to_cuda(episode_sample['actions'], self.args.device), 1)
+                    episode_sample['actions_onehot'][:] = new_actions_onehot
 
-                if episode_sample.device != args.device:
-                    episode_sample.to(args.device)
+                    if episode_sample.device != args.device:
+                        episode_sample.to(args.device)
+                else:
+                    # Truncate batch to only filled timesteps
+                    max_ep_t = episode_sample.max_t_filled()
+                    episode_sample = episode_sample[:, :max_ep_t]
 
-                # gridworld : use_emdqn: false
+                    if episode_sample.device != args.device:
+                        episode_sample.to(args.device)
+
                 if args.is_prioritized_buffer:
                     if getattr(args, "use_emdqn", False):
-                        td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+                        td_error = learner.train(episode_sample, runner.t_env, episode,ec_buffer=ec_buffer)
                     else:
                         td_error = learner.train(episode_sample, runner.t_env, episode)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
                         buffer.update_priority(sample_indices, td_error)
                 else:
                     if getattr(args, "use_emdqn", False):
                         td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
                     else:
                         learner.train(episode_sample, runner.t_env, episode)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
+
+
+
+                if args.env == 'mmdp_game_1' and args.learner == "q_learner_exp":
+                    for i in range(int(learner.target_gap) - 1):
+                        episode_sample = buffer.sample(args.batch_size)
+
+                        # Truncate batch to only filled timesteps
+                        max_ep_t = episode_sample.max_t_filled()
+                        episode_sample = episode_sample[:, :max_ep_t]
+
+                        if episode_sample.device != args.device:
+                            episode_sample.to(args.device)
+
+                        learner.train(episode_sample, runner.t_env, episode)
 
         # Execute test runs once in a while
         n_test_runs = max(1, args.test_nepisode // runner.batch_size)
@@ -282,13 +349,78 @@ def run_sequential(args, logger):
                     if episode_sample.device != args.device:
                         episode_sample.to(args.device)
                     learner.train(episode_sample, runner.t_env, episode, show_v=True)
-                    action_learner.train(episode_sample, runner.t_env, episode, show_v=True)
 
+        if args.env == 'mmdp_game_1' and \
+                (runner.t_env - last_demo_T) / args.demo_interval >= 1.0 and buffer.can_sample(args.batch_size):
+            ### demo
+            episode_sample = cp.deepcopy(buffer.sample(1))
+            for i in range(args.n_actions):
+                for j in range(args.n_actions):
+                    if args.env == 'mmdp_game_1' and args.joint_random_policy_eps > 0:
+                        logger.log_stat("joint_prob_%d_%d" % (i, j), runner.mac.action_selector.joint_action_seeds[i * 2 + j], runner.t_env)
+                    new_actions = th.Tensor([i, j]).unsqueeze(0).repeat(args.episode_limit + 1, 1)
+                    if i == 0 and j == 0:
+                        rew = th.Tensor([1, ])
+                    else:
+                        rew = th.Tensor([0, ])
+                    if i == 1 and j == 1:
+                        new_obs = th.Tensor([1, 0]).unsqueeze(0).unsqueeze(0).repeat(args.episode_limit, args.n_agents, 1)
+                    else:
+                        new_obs = th.Tensor([0, 1]).unsqueeze(0).unsqueeze(0).repeat(args.episode_limit, args.n_agents, 1)
+                    # Truncate batch to only filled timesteps
+                    max_ep_t = episode_sample.max_t_filled()
+                    episode_sample = episode_sample[:, :max_ep_t]
+                    episode_sample['actions'][0, :, :, 0] = new_actions
+                    episode_sample['obs'][0, 1:, :, :] = new_obs
+                    episode_sample['reward'][0, 0, 0] = rew
+                    new_actions_onehot = th.zeros(episode_sample['actions'].squeeze(3).shape + (args.n_actions,))
+                    new_actions_onehot = new_actions_onehot.scatter_(3, episode_sample['actions'].cpu(), 1)
+                    episode_sample['actions_onehot'][:] = new_actions_onehot
+
+                    if episode_sample.device != args.device:
+                        episode_sample.to(args.device)
+
+                    #print("action pair: %d, %d" % (i, j))
+                    learner.train(episode_sample, runner.t_env, episode, show_demo=True, save_data=(i, j))
+            last_demo_T = runner.t_env
+            #time.sleep(1)
+
+        if (args.env == 'matrix_game_1' or args.env == 'matrix_game_2' or args.env == 'matrix_game_3') and \
+                (runner.t_env - last_demo_T) / args.demo_interval >= 1.0 and buffer.can_sample(args.batch_size):
+            ### demo
+            episode_sample = cp.deepcopy(buffer.sample(1))
+            for i in range(args.n_actions):
+                for j in range(args.n_actions):
+                    new_actions = th.Tensor([i, j]).unsqueeze(0).repeat(args.episode_limit + 1, 1)
+                    # Truncate batch to only filled timesteps
+                    max_ep_t = episode_sample.max_t_filled()
+                    episode_sample = episode_sample[:, :max_ep_t]
+                    episode_sample['actions'][0, :, :, 0] = new_actions
+                    new_actions_onehot = to_cuda(th.zeros(episode_sample['actions'].squeeze(3).shape + (args.n_actions,)), self.args.device)
+                    new_actions_onehot = new_actions_onehot.scatter_(3, to_cuda(episode_sample['actions'], self.args.device), 1)
+                    episode_sample['actions_onehot'][:] = new_actions_onehot
+                    if i == 0 and j == 0:
+                        rew = th.Tensor([8, ])
+                    elif i == 0 or j == 0:
+                        rew = th.Tensor([-12, ])
+                    else:
+                        rew = th.Tensor([0, ])
+                    if args.env == 'matrix_game_3':
+                        if i == 1 and j == 1 or i == 2 and j == 2:
+                            rew = th.Tensor([6, ])
+                    episode_sample['reward'][0, 0, 0] = rew
+
+                    if episode_sample.device != args.device:
+                        episode_sample.to(args.device)
+
+                    #print("action pair: %d, %d" % (i, j))
+                    learner.train(episode_sample, runner.t_env, episode, show_demo=True, save_data=(i, j))
+            last_demo_T = runner.t_env
+            #time.sleep(1)
 
         if args.save_model and (runner.t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
             model_save_time = runner.t_env
             save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
-            actionmodel_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env), 'action')
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)
             if args.double_q:
@@ -319,7 +451,6 @@ def run_sequential(args, logger):
             # learner should handle saving/loading -- delegate actor save/load to mac,
             # use appropriate filenames to do critics, optimizer states
             learner.save_models(save_path)
-            action_learner.save_models(actionmodel_path)
 
         episode += args.batch_size_run * args.num_circle
 

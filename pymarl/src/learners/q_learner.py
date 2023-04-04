@@ -36,7 +36,6 @@ class QLearner:
 
         self.log_stats_t = -self.args.learner_log_interval - 1
 
-    # 目前所有的训练更新相关代码
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int, show_demo=False, save_data=None, show_v=False):
         # Get the relevant quantities
         rewards = batch["reward"][:, :-1]
@@ -47,9 +46,7 @@ class QLearner:
         avail_actions = batch["avail_actions"]
 
         # Calculate estimated Q-Values
-        # 初始化隐变量
         self.mac.init_hidden(batch.batch_size)
-        # rnn_fast_agent.forward(batch, batch.max_seq_lenth)
         mac_out = self.mac.forward(batch, batch.max_seq_length, batch_inf=True)
 
         # Pick the Q-Values for the actions taken by each agent
