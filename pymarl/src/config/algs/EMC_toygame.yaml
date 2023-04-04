@@ -20,7 +20,8 @@ double_q: True
 mixer: "vdn"
 gamma: 0.9
 
-
+use_cuda: False # Use gpu by default unless it isn't available
+buffer_cpu_only: True # If true we won't keep all of the replay buffer in vram
 
 
 curiosity_scale: 0.2
