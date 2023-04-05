@@ -56,17 +56,24 @@ class EpisodeRunner:
 
     def cal_low_reward(self, goals, obs, SR=None):
         '''
-        states: 或许是obs更合适
+        obs: [1,2,46] np list
+        goals: [1,2,23] tensor
         '''
-        rewards = []
+        t_goals = goals.clone().detach()
+        rewards = 0
+
+        # print(t_goals.shape)
+        # print('obs: ', obs[0].shape)
+        # print(obs[0][0][:self.args.goal_shape])
+        # print(t_goals[0][0].numpy())
+        
         if SR:
             rewards = [SR[obs][goals]]
-
         else: # 之间计算goal 和 state的距离
             for i in range(self.env.n_agents):
                 # rewards.append()
-                reward = -abs(goals[i] - obs[i])
-                rewards.append(reward)
+                reward = np.linalg.norm(t_goals[0][i].numpy() - obs[0][i][:self.args.goal_shape], ord=2)
+                rewards -= reward
 
         return rewards
 
@@ -77,23 +84,26 @@ class EpisodeRunner:
         terminated = False
         episode_return = 0
         self.mac.init_hidden(batch_size=self.batch_size)
+        self.action_mac.init_hidden(batch_size=self.batch_size)
         goals = []
 
         while not terminated:
 
-            for i in range(self.args.gener_goal_interval):
-                pass
+            # for i in range(self.args.gener_goal_interval):
+            #     pass
 
             # highlevel 输出 goal
             if self.t % self.args.gener_goal_interval == 0:
                 goals = self.mac.select_goals(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
 
-            print('goals: ', goals.shape) # 1,2,46
+            # print('goals: ', goals.shape) # 1,2,23
+            # print('obs: ' , th.tensor([self.env.get_obs()]).shape)
+            # print('state: ', th.tensor([self.env.get_state()]).shape)
 
             pre_transition_data = {
                 "state": [self.env.get_state()],
                 "avail_actions": [self.env.get_avail_actions()],
-                "obs": [self.env.get_obs()],
+                "obs": [self.env.get_obs()], # 1, 2, 46
                 # 所有智能体的目标goal
                 "goals": goals  # 预期 1, 2, 23
             }
@@ -101,10 +111,6 @@ class EpisodeRunner:
             # get_obs() --> (2, 23)
             # print('trans data[\'obs\']', th.tensor([self.env.get_obs()]).shape)  # 1, 2, 23
             # print('trans data[\'avail_actions\']', th.tensor([self.env.get_avail_actions()]).shape)  # 1, 2, 5
-
-            # print(self.env.state_shape) # 92
-            print('state shape: ', self.env.get_state().shape)
-
             # print(self.env.get_obs()) # (2， 23)
 
             self.batch.update(pre_transition_data, ts=self.t)
@@ -115,21 +121,20 @@ class EpisodeRunner:
             # lowlevel agent 输出 action
             actions = self.action_mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
             
-            
             reward, terminated, env_info = self.env.step(actions[0])
-            next_state = self.env.get_state()
-            next_obs = self.env.get_obs()
+            # next_state = self.env.get_state()
+            next_obs = [self.env.get_obs()]
             # low reward底层回报 每个agent获得一个
-            low_reward = [self.cal_low_reward(goals[0], next_obs)]
+            # goals [1,2,23] obs [1,2,46]
+            low_reward = [self.cal_low_reward(goals, next_obs)]
             # low_reward = self.env.cal_low_reward(goals, next_state)
             
-
             episode_return += reward
 
             post_transition_data = {
                 "actions": actions,
                 "reward": [(reward,)], # high_reward
-                "low_reward": low_reward,
+                "low_reward": [(low_reward,)],
                 "terminated": [(terminated != env_info.get("episode_limit", False),)],
             }
 
@@ -145,7 +150,7 @@ class EpisodeRunner:
         self.batch.update(last_data, ts=self.t)
 
         # Select actions in the last stored state
-        actions = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
+        actions = self.action_mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
         self.batch.update({"actions": actions}, ts=self.t)
 
         cur_stats = self.test_stats if test_mode else self.train_stats

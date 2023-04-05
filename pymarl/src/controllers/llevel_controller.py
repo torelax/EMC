@@ -116,7 +116,7 @@ class LLevelMAC:
             bs = batch.batch_size
             inputs = []
             inputs.append(batch["obs"][:, t])  # b1av
-            inputs.append(batch["goals"[:, :t]])
+            inputs.append(batch["goals"][:, t])
             if self.args.obs_last_action:
                 if t == 0:
                     inputs.append(th.zeros_like(batch["actions_onehot"][:, t]))
@@ -130,6 +130,7 @@ class LLevelMAC:
 
     def _get_input_shape(self, scheme):
         input_shape = scheme["obs"]["vshape"]
+        input_shape += scheme['goals']['vshape']
         if self.args.obs_last_action:
             input_shape += scheme["actions_onehot"]["vshape"][0]
         if self.args.obs_agent_id:

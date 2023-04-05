@@ -44,13 +44,13 @@ class HLevelMAC:
         agent_inputs = self._build_inputs(ep_batch, t, batch_inf)
 
         # 期望输入 1, 2, 23 观测  --> 1, 1, 46
-        print('final input shape: ', agent_inputs.shape)
+        # print('final input shape: ', agent_inputs.shape)
         epi_len = t if batch_inf else 1
 
         goal_outs, self.hidden_states = self.hlevel(agent_inputs, self.hidden_states)
 
         # 期望输出 1, 1, 46 --> 1, 2, 23
-        print('goal shape1: ', goal_outs.shape)
+        # print('goal shape1: ', goal_outs.shape)
 
         if batch_inf:
             return goal_outs.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
@@ -97,17 +97,18 @@ class HLevelMAC:
             bs = batch.batch_size
             inputs = []
             inputs.append(batch["obs"][:, :t:tdn])  # bTav
+            # inputs.append(batch['goals'][:, :t:tdn])
             # current False
             if self.args.input_last_goal:
                 last_goals = th.zero_like(batch["goals"][:,:t:tdn])
                 last_goals[:, 1:] = batch["goals"][:, :t-tdn:tdn]
                 inputs.append(last_goals)
-            # if self.args.obs_last_action:
-            #     last_actions = th.zeros_like(batch["actions_onehot"][:, :t:tdn])
-            #     last_actions[:, 1:] = batch["actions_onehot"][:, :t-1:tdn]
-            #     inputs.append(last_actions)
-            # if self.args.obs_agent_id:
-            #     inputs.append(th.eye(self.n_agents, device=batch.device).view(1, 1, self.n_agents, self.n_agents).expand(bs, t, -1, -1))
+            if self.args.obs_last_action:
+                last_actions = th.zeros_like(batch["actions_onehot"][:, :t:tdn])
+                last_actions[:, 1:] = batch["actions_onehot"][:, :t-1:tdn]
+                inputs.append(last_actions)
+            if self.args.obs_agent_id:
+                inputs.append(th.eye(self.n_agents, device=batch.device).view(1, 1, self.n_agents, self.n_agents).expand(bs, t, -1, -1))
 
             inputs = th.cat([x.transpose(1, 2).reshape(bs*self.n_agents, t // tdn, -1) for x in inputs], dim=2)
             return inputs
