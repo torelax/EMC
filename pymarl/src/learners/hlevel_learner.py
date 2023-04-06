@@ -2,8 +2,10 @@ import copy
 from components.episode_buffer import EpisodeBatch
 from modules.mixers.vdn import VDNMixer
 from modules.mixers.qmix import QMixer
+from modules.mixers.gmix import GMixer
 import torch as th
 from torch.optim import RMSprop
+import torch.nn.functional as F
 from utils.torch_utils import to_cuda
 
 from controllers.hlevel_controller import HLevelMAC
@@ -21,11 +23,14 @@ class HLevelLearner:
         self.last_target_update_episode = 0
 
         self.mixer = None
+        # self.mixer_input_shape = self.args.obs_shape
         if args.mixer is not None:
             if args.mixer == "vdn":
                 self.mixer = VDNMixer()
             elif args.mixer == "qmix":
                 self.mixer = QMixer(args)
+            elif args.mixer == 'gmix':
+                self.mixer = GMixer( args)
             else:
                 raise ValueError("Mixer {} not recognised.".format(args.mixer))
             self.params += list(self.mixer.parameters())
@@ -43,6 +48,7 @@ class HLevelLearner:
         # Get the relevant quantities
         rewards = batch["reward"][:, :-1]
         actions = batch["actions"][:, :-1]
+        goals = batch['goals'][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
         mask = batch["filled"][:, :-1].float()
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
@@ -52,45 +58,38 @@ class HLevelLearner:
         # 初始化隐变量
         self.mac.init_hidden(batch.batch_size)
         # rnn_fast_agent.forward(batch, batch.max_seq_lenth)
-        mac_out = self.mac.forward(batch, batch.max_seq_length, batch_inf=True)
+        # hlevel_mac obs --> goals 
+        goals_out = self.mac.forward(batch, batch.max_seq_length, batch_inf=True)
 
-        # Pick the Q-Values for the actions taken by each agent
-        chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
-
-        x_mac_out = mac_out.clone().detach()
-        x_mac_out[avail_actions == 0] = -9999999
-        max_action_qvals, max_action_index = x_mac_out[:, :-1].max(dim=3)
-
-        max_action_index = max_action_index.detach().unsqueeze(3)
-        is_max_action = (max_action_index == actions).int().float()
-
-        if show_demo:
-            q_i_data = chosen_action_qvals.detach().cpu().numpy()
-            q_data = (max_action_qvals - chosen_action_qvals).detach().cpu().numpy()
+        # if show_demo:
+            # q_i_data = chosen_action_qvals.detach().cpu().numpy()
+            # q_data = (max_action_qvals - chosen_action_qvals).detach().cpu().numpy()
 
         # Calculate the Q-Values necessary for the target
         self.target_mac.init_hidden(batch.batch_size)
-        target_mac_out = self.target_mac.forward(batch, batch.max_seq_length, batch_inf=True)[:, 1:, ...]
+        target_goals_out = self.target_mac.forward(batch, batch.max_seq_length, batch_inf=True)[:, 1:, ...]
 
         # Max over target Q-Values
-        if self.args.double_q:
-            # Get actions that maximise live Q (for double q-learning)
-            mac_out_detach = mac_out.clone().detach()
-            mac_out_detach[avail_actions == 0] = -9999999
-            cur_max_actions = mac_out_detach[:, 1:].max(dim=3, keepdim=True)[1]
-            target_max_qvals = th.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
-        else:
-            target_max_qvals = target_mac_out.max(dim=3)[0]
+        # if self.args.double_q:
+        #     # Get actions that maximise live Q (for double q-learning)
+        #     mac_out_detach = mac_out.clone().detach()
+        #     mac_out_detach[avail_actions == 0] = -9999999
+        #     cur_max_actions = mac_out_detach[:, 1:].max(dim=3, keepdim=True)[1]
+        #     target_max_qvals = th.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
+        # else:
+        #     target_max_qvals = target_mac_out.max(dim=3)[0]
 
         # Mix
         if self.mixer is not None:
-            chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1])
-            target_max_qvals = self.target_mixer(target_max_qvals, batch["state"][:, 1:])
+            # chosen_action_qvals = self.mixer(chosen_action_qvals, batch["obs"][:, :-1])
+            # 输入goals 输出V(goals)
+            v_goals = self.mixer(goals_out)
+            target_v_goals = self.target_mixer(target_goals_out, batch["obs"][:, 1:])
 
-        # Calculate 1-step Q-Learning targets
-        targets = rewards + self.args.gamma * (1 - terminated) * target_max_qvals
+        # V(g) = V(g) + \alpha ( r + \gammaV(g') - V(g) )
+        targets = rewards + self.args.gamma * (1 - terminated) * target_v_goals
 
-        if show_demo:
+        """ if show_demo:
             tot_q_data = chosen_action_qvals.detach().cpu().numpy()
             tot_target = targets.detach().cpu().numpy()
             if self.mixer == None:
@@ -101,12 +100,15 @@ class HLevelLearner:
                   np.squeeze(q_i_data[:, 0]), np.squeeze(tot_q_data[:, 0]), np.squeeze(tot_target[:, 0]))
             self.logger.log_stat('action_pair_%d_%d' % (save_data[0], save_data[1]),
                                  np.squeeze(tot_q_data[:, 0]), t_env)
-            return
+            return """
 
-        # Td-error
-        td_error = (chosen_action_qvals - targets.detach())
+        # Td-error loss
+        # td_error = (v_goals - targets.detach())
 
-        mask = mask.expand_as(td_error)
+        # loss = 1 //2 * (targets - v_goals).sum() // 
+        loss = th.mean(F.mse_loss(targets - v_goals))
+
+        # mask = mask.expand_as(td_error)
 
         if show_v:
             mask_elems = mask.sum().item()
@@ -116,17 +118,17 @@ class HLevelLearner:
                 actual_v[:, t] += self.args.gamma * actual_v[:, t + 1]
             self.logger.log_stat("test_actual_return", (actual_v * mask).sum().item() / mask_elems, t_env)
 
-            self.logger.log_stat("test_q_taken_mean", (chosen_action_qvals * mask).sum().item()/mask_elems, t_env)
+            # self.logger.log_stat("test_q_taken_mean", (chosen_action_qvals * mask).sum().item()/mask_elems, t_env)
             return
 
         # 0-out the targets that came from padded data
-        masked_td_error = td_error * mask
+        # masked_td_error = td_error * mask
 
         # Normal L2 loss, take mean over actual data
-        loss = (masked_td_error ** 2).sum() / mask.sum()
+        # loss = (masked_td_error ** 2).sum() / mask.sum()
 
-        masked_hit_prob = th.mean(is_max_action, dim=2) * mask
-        hit_prob = masked_hit_prob.sum() / mask.sum()
+        # masked_hit_prob = th.mean(is_max_action, dim=2) * mask
+        # hit_prob = masked_hit_prob.sum() / mask.sum()
 
         # Optimise
         self.optimiser.zero_grad()
@@ -140,11 +142,11 @@ class HLevelLearner:
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("loss", loss.item(), t_env)
-            self.logger.log_stat("hit_prob", hit_prob.item(), t_env)
+            # self.logger.log_stat("hit_prob", hit_prob.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
-            self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
-            self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            # self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
+            # self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.log_stats_t = t_env
 

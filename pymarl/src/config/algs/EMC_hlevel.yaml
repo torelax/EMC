@@ -23,7 +23,8 @@ actionlearner: "action_Learner"
 
 double_q: True
 # mixer: "vdn"
-mixer: "qmix"
+# mixer: "qmix"
+mixer: 'gmix'
 gamma: 0.9
 
 mixing_embed_dim: 32
