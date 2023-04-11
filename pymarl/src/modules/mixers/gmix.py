@@ -5,6 +5,9 @@ import numpy as np
 
 
 class GMixer(nn.Module):
+    '''
+    goal-Mixer: 作为Critic拟合`V_tot(g)`
+    '''
     def __init__(self, args):
         super(GMixer, self).__init__()
 
@@ -37,7 +40,8 @@ class GMixer(nn.Module):
         x = F.relu(self.fc1(inputs))
         x2 = F.relu(self.fc2(x))
         v= F.relu(self.fc3(x2))
-        q = self.fc2(x)
+        # q = self.fc2(x)
 
-        q = q.reshape(bs, epi_len, 1)
-        return q
+        # q = q.reshape(bs, epi_len, 1)
+        v = v.reshape(bs, epi_len, 1)
+        return v

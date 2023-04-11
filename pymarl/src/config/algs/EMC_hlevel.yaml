@@ -52,6 +52,10 @@ hlevel: "hlevel_nosr"
 
 input_last_goal: False
 
+max_goal_gap: 6
+goal_dis: 0.5
+arrive_g_threshold: 0.5
+
 is_prioritized_buffer: True
 
 use_emdqn: False

@@ -11,7 +11,7 @@ import torch as th
 
 class EpisodeRunner:
 
-    def __init__(self, args, logger):
+    def __init__(self, args, logger): 
         self.args = args
         self.logger = logger
         self.batch_size = self.args.batch_size_run
@@ -76,6 +76,9 @@ class EpisodeRunner:
                 rewards -= reward
 
         return rewards
+
+    def arrive_goal(self, goal, obs):
+        pass
 
     # todo HER
     def run(self, test_mode=False):
