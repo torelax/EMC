@@ -29,7 +29,6 @@ import random
 def run(_run, _config, _log):
 
     # check args sanity
-    print('Run.....................')
     _config = args_sanity_check(_config, _log)
 
     args = SN(**_config)
@@ -82,7 +81,7 @@ def run(_run, _config, _log):
     print("Exiting script")
 
     # Making sure framework really exits
-    os._exit(os.EX_OK)
+    # os._exit(os.EX_OK)
 
 
 def evaluate_sequential(args, runner):
@@ -202,6 +201,8 @@ def run_sequential(args, logger):
 
     start_time = time.time()
     last_time = start_time
+    Arr = Sum = 0
+    _p, _sum = 0, 0
 
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
 
@@ -211,7 +212,9 @@ def run_sequential(args, logger):
         if not args.is_batch_rl:
             # Run for a whole episode at a time
             # batch 带上 goal
-            episode_batch = runner.run(test_mode=False)
+            episode_batch, _p, _sum = runner.run(test_mode=False)
+            Arr += _p
+            Sum += _sum
             if getattr(args, "use_emdqn", False):
                 ec_buffer.update_ec(episode_batch)
             buffer.insert_episode_batch(episode_batch)
@@ -231,6 +234,7 @@ def run_sequential(args, logger):
             if buffer.can_sample(args.batch_size):
                 if args.is_prioritized_buffer:
                     sample_indices, episode_sample = buffer.sample(args.batch_size)
+                    # print('sample_indiced: ', sample_indices)
                 else:
                     episode_sample = buffer.sample(args.batch_size)
 
@@ -253,7 +257,7 @@ def run_sequential(args, logger):
                     else:
                         td_error = learner.train(episode_sample, runner.t_env, episode)
                         ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
-                        buffer.update_priority(sample_indices, td_error)
+                        # buffer.update_priority(sample_indices, td_error)
                 else:
                     if getattr(args, "use_emdqn", False):
                         td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
@@ -266,6 +270,8 @@ def run_sequential(args, logger):
         n_test_runs = max(1, args.test_nepisode // runner.batch_size)
         if (runner.t_env - last_test_T) / args.test_interval >= 1.0 :
 
+            print(f'Arrive Goal: {Arr}/{Sum}')
+            Arr = Sum = 0
             logger.console_logger.info("t_env: {} / {}".format(runner.t_env, args.t_max))
             logger.console_logger.info("Estimated time left: {}. Time passed: {}".format(
                 time_left(last_time, last_test_T, runner.t_env, args.t_max), time_str(time.time() - start_time)))

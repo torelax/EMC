@@ -54,7 +54,6 @@ class HLevelLearner:
         mask = batch["filled"][:, :-1].float()
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
 
-        print(batch['obs'].shape)
         # 简单的HER实现
         batch['goals'][:, :-1] = batch['goals'][:, 1:]
         goals = batch['goals'].reshape((batch.batch_size, batch.max_seq_length, -1))
@@ -162,14 +161,17 @@ class HLevelLearner:
             self.last_target_update_episode = episode_num
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
-            self.logger.log_stat("mixer_loss", mixer_loss.item(), t_env)
-            # self.logger.log_stat("hit_prob", hit_prob.item(), t_env)
-            self.logger.log_stat("grad_norm", grad_norm, t_env)
+            self.logger.log_stat("hlevel:mixer_loss", mixer_loss.item(), t_env)
+            self.logger.log_stat("hlevel:goal_loss", goal_loss.item(), t_env)
+
+            self.logger.log_stat("hlevel:grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
             # self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             # self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             # self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.log_stats_t = t_env
+
+        return mixer_loss
 
     def _update_targets(self):
         self.target_mac.load_state(self.mac)
@@ -188,7 +190,8 @@ class HLevelLearner:
         self.mac.save_models(path)
         if self.mixer is not None:
             th.save(self.mixer.state_dict(), "{}/mixer.th".format(path))
-        th.save(self.optimiser.state_dict(), "{}/opt.th".format(path))
+        th.save(self.g_optimiser.state_dict(), "{}/goal_opt.th".format(path))
+        th.save(self.m_optimiser.state_dict(), "{}/mixer_opt.th".format(path))
 
     def load_models(self, path):
         self.mac.load_models(path)
@@ -196,4 +199,5 @@ class HLevelLearner:
         self.target_mac.load_models(path)
         if self.mixer is not None:
             self.mixer.load_state_dict(th.load("{}/mixer.th".format(path), map_location=lambda storage, loc: storage))
-        self.optimiser.load_state_dict(th.load("{}/opt.th".format(path), map_location=lambda storage, loc: storage))
+        self.g_optimiser.load_state_dict(th.load("{}/goal_opt.th".format(path), map_location=lambda storage, loc: storage))
+        self.m_optimiser.load_state_dict(th.load("{}/mixer_opt.th".format(path), map_location=lambda storage, loc: storage))

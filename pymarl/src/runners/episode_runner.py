@@ -77,8 +77,12 @@ class EpisodeRunner:
 
         return rewards
 
-    def arrive_goal(self, goal, obs):
-        pass
+    def arrive_goal(self, goals, obs):
+        t_goals = goals.clone().detach()
+        for i in range(self.env.n_agents):
+            if np.linalg.norm(t_goals[0][i].numpy() - obs[0][i][:self.args.goal_shape], ord=2) > self.args.arrive_g_threshold:
+                return False
+        return True
 
     # todo HER
     def run(self, test_mode=False):
@@ -89,6 +93,7 @@ class EpisodeRunner:
         self.mac.init_hidden(batch_size=self.batch_size)
         self.action_mac.init_hidden(batch_size=self.batch_size)
         goals = []
+        p = counts = 0
 
         while not terminated:
 
@@ -96,8 +101,10 @@ class EpisodeRunner:
             #     pass
 
             # highlevel 输出 goal
-            if self.t % self.args.gener_goal_interval == 0:
+            if self.t % self.args.gener_goal_interval == 0 or self.arrive_goal(goals, [self.env.get_obs()]):
                 goals = self.mac.select_goals(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
+                p += self.arrive_goal(goals, [self.env.get_obs()])
+                counts += 1
 
             # print('goals: ', goals.shape) # 1,2,23
             # print('obs: ' , th.tensor([self.env.get_obs()]).shape)
@@ -168,17 +175,17 @@ class EpisodeRunner:
 
         cur_returns.append(episode_return)
 
-        # if test_mode and (len(self.test_returns) == self.args.test_nepisode):
-        #     self._log(cur_returns, cur_stats, log_prefix)
-        # elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
-        #     self._log(cur_returns, cur_stats, log_prefix)
-        #     if hasattr(self.mac.action_selector, "epsilon"):
-        #         self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
-        #     self.log_train_stats_t = self.t_env
+        if test_mode and (len(self.test_returns) == self.args.test_nepisode):
+            self._log(cur_returns, cur_stats, log_prefix)
+        elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
+            self._log(cur_returns, cur_stats, log_prefix)
+            if hasattr(self.mac.action_selector, "epsilon"):
+                self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
+            self.log_train_stats_t = self.t_env
+        # print(f'Arrive Goal: {p}/{counts}')
+        return self.batch, p, counts
 
-        return self.batch
-
-    """ def _log(self, returns, stats, prefix):
+    def _log(self, returns, stats, prefix):
         self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.t_env)
         self.logger.log_stat(prefix + "return_std", np.std(returns), self.t_env)
         returns.clear()
@@ -186,4 +193,4 @@ class EpisodeRunner:
         for k, v in stats.items():
             if k != "n_episodes":
                 self.logger.log_stat(prefix + k + "_mean" , v/stats["n_episodes"], self.t_env)
-        stats.clear() """
+        stats.clear()

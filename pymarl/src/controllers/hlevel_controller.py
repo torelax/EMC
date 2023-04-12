@@ -64,7 +64,7 @@ class HLevelMAC:
         return self.hlevel.parameters()
 
     def load_state(self, other_mac):
-        self.hlevel.load_state_dict(other_mac.agent.state_dict())
+        self.hlevel.load_state_dict(other_mac.hlevel.state_dict())
 
     def cuda(self):
         self.hlevel.cuda()

@@ -130,13 +130,13 @@ class ActionLearner:
             self.last_target_update_episode = episode_num
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
-            self.logger.log_stat("loss", loss.item(), t_env)
-            self.logger.log_stat("hit_prob", hit_prob.item(), t_env)
-            self.logger.log_stat("grad_norm", grad_norm, t_env)
+            self.logger.log_stat("llevel:loss", loss.item(), t_env)
+            self.logger.log_stat("llevel:hit_prob", hit_prob.item(), t_env)
+            self.logger.log_stat("llevel:grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
-            self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
-            self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
-            self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            self.logger.log_stat("llevel:td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
+            self.logger.log_stat("llevel:q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            self.logger.log_stat("llevel:target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.log_stats_t = t_env
 
     def _update_targets(self):
