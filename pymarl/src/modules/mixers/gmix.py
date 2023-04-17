@@ -18,7 +18,7 @@ class GMixer(nn.Module):
         # self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
         self.fc2 = nn.Linear(32, 28)
         self.fc3 = nn.Linear(28, 1)
-        self.n_agents = args.n_agents
+        # self.n_agents = args.n_agents
 
         self.state_dim = int(np.prod(args.state_shape))
 

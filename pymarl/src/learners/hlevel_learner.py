@@ -84,11 +84,15 @@ class HLevelLearner:
         # else:
         #     target_max_qvals = target_mac_out.max(dim=3)[0]
 
-        # Mix
-
+        # Mixer
         # Solution 2 拿s,r,a,o来训练
-        Vtot_obs = self.mixer(batch['obs'][:, :-1, 0])
-        target_Vtot_obs = self.target_mixer(batch['obs'][:, 1:, 0])
+        # 将obs转成goal的形式
+        _obs_goal = th.cat([th.max(batch['obs'][:,:,0,:11], -1)[1], th.max(batch['obs'][:,:,0,11:23], -1)[1], th.max(batch['obs'][:,:,0,23:34], -1)[1], th.max(batch['obs'][:,:,0,34:46], -1)[1]], dim=-1)
+        # print(obs_goal.shape)
+        obs_goal = _obs_goal.reshape(batch.batch_size, batch.max_seq_length, -1).float()
+        # print(obs_goal[:, :-1, :].dtype)
+        Vtot_obs = self.mixer(obs_goal[:, :-1, :])
+        target_Vtot_obs = self.target_mixer(obs_goal[:, 1:, :])
 
         target = rewards + self.args.gamma * (1 - terminated) * target_Vtot_obs
         mixer_loss = th.mean(F.mse_loss(Vtot_obs, target))

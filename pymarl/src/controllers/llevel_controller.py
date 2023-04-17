@@ -23,6 +23,9 @@ class LLevelMAC:
             agent_outputs,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
         else:
             agent_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode)
+        # if test_mode:
+        #     print(agent_outputs)
+        #     print(agent_outputs[bs], avail_actions[bs])
         chosen_actions = self.action_selector.select_action(agent_outputs[bs], avail_actions[bs], t_env, test_mode=test_mode)
         return chosen_actions
 

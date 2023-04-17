@@ -11,7 +11,7 @@ class GridworldEnv:
         self.noise_num = noise_num
         self.rows, self.cols = input_rows, input_cols
         self.obs_shape = (self.rows + self.cols) * 2 + int(self.noise) * self.noise_num
-        self.goal_shape = (self.rows + self.cols)
+        self.goal_shape = 2 # (self.rows + self.cols)
         self.state_shape = self.obs_shape * 2
         self._episode_steps = 0
         self.episode_limit = episode_limit
@@ -185,13 +185,13 @@ class GridworldEnv:
                             sampled_action -= 1
 
             if action == 0:
-                self.index[idx][0] -= 1
+                self.index[idx][0] -= 1 # row - 1
             elif action == 1:
-                self.index[idx][0] += 1
+                self.index[idx][0] += 1 # row + 1
             elif action == 2:
-                self.index[idx][1] -= 1
+                self.index[idx][1] -= 1 # col - 1
             elif action == 3:
-                self.index[idx][1] += 1
+                self.index[idx][1] += 1 # col + 1
 
         # for i in range(self.rows):
         #     print(self.array[i])

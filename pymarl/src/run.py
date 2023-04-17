@@ -133,10 +133,9 @@ def run_sequential(args, logger):
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 2
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
-        "low_reward": {"vshape": (1,)},
+        "low_reward": {"vshape": (env_info["n_agents"],)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
-    print()
     groups = {
         "agents": args.n_agents
     }
@@ -230,109 +229,119 @@ def run_sequential(args, logger):
                     print('current episodes_in_buffer: ', save_buffer.episodes_in_buffer)
 
         # num_circle: 1
-        for _ in range(args.num_circle):
-            if buffer.can_sample(args.batch_size):
-                if args.is_prioritized_buffer:
-                    sample_indices, episode_sample = buffer.sample(args.batch_size)
-                    # print('sample_indiced: ', sample_indices)
-                else:
-                    episode_sample = buffer.sample(args.batch_size)
-
-                # is_batch_rl: false
-                if args.is_batch_rl:
-                    runner.t_env += int(th.sum(episode_sample['filled']).cpu().clone().detach().numpy()) // args.batch_size
-
-                # Truncate batch to only filled timesteps
-                max_ep_t = episode_sample.max_t_filled()
-                episode_sample = episode_sample[:, :max_ep_t]
-
-                if episode_sample.device != args.device:
-                    episode_sample.to(args.device)
-
-                # gridworld : use_emdqn: false
-                if args.is_prioritized_buffer:
-                    if getattr(args, "use_emdqn", False):
-                        td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+        if runner.t_env >= args.train_delay_steps:
+            for _ in range(args.num_circle):
+                if buffer.can_sample(args.batch_size):
+                    if args.is_prioritized_buffer:
+                        sample_indices, episode_sample = buffer.sample(args.batch_size)
+                        # print('sample_indiced: ', sample_indices)
                     else:
-                        td_error = learner.train(episode_sample, runner.t_env, episode)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
-                        # buffer.update_priority(sample_indices, td_error)
-                else:
-                    if getattr(args, "use_emdqn", False):
-                        td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
-                    else:
-                        learner.train(episode_sample, runner.t_env, episode)
-                        ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
+                        episode_sample = buffer.sample(args.batch_size)
 
-        # Execute test runs once in a while
-        n_test_runs = max(1, args.test_nepisode // runner.batch_size)
-        if (runner.t_env - last_test_T) / args.test_interval >= 1.0 :
+                    # is_batch_rl: false
+                    if args.is_batch_rl:
+                        runner.t_env += int(th.sum(episode_sample['filled']).cpu().clone().detach().numpy()) // args.batch_size
 
-            print(f'Arrive Goal: {Arr}/{Sum}')
-            Arr = Sum = 0
-            logger.console_logger.info("t_env: {} / {}".format(runner.t_env, args.t_max))
-            logger.console_logger.info("Estimated time left: {}. Time passed: {}".format(
-                time_left(last_time, last_test_T, runner.t_env, args.t_max), time_str(time.time() - start_time)))
-            last_time = time.time()
-            logger.log_stat("num_circle", args.num_circle, runner.t_env)
-
-            last_test_T = runner.t_env
-            for _ in range(n_test_runs):
-                episode_sample = runner.run(test_mode=True)
-                if args.mac == "offline_mac":
+                    # Truncate batch to only filled timesteps
                     max_ep_t = episode_sample.max_t_filled()
                     episode_sample = episode_sample[:, :max_ep_t]
 
                     if episode_sample.device != args.device:
                         episode_sample.to(args.device)
-                    learner.train(episode_sample, runner.t_env, episode, show_v=True)
-                    action_learner.train(episode_sample, runner.t_env, episode, show_v=True)
+
+                    # gridworld : use_emdqn: false
+                    if args.is_prioritized_buffer:
+                        if getattr(args, "use_emdqn", False):
+                            td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+                            ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+                        else:
+                            td_error = learner.train(episode_sample, runner.t_env, episode)
+                            ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
+                            # buffer.update_priority(sample_indices, td_error)
+                    else:
+                        if getattr(args, "use_emdqn", False):
+                            td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+                            ltd_error = action_learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
+                        else:
+                            learner.train(episode_sample, runner.t_env, episode)
+                            ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
+                    # print(episode_sample['goals'][-1,-1])
+
+            # Execute test runs once in a while
+            n_test_runs = max(1, args.test_nepisode // runner.batch_size)
+            if (runner.t_env - last_test_T) / args.test_interval >= 1.0 :
+
+                # print(f'Arrive Goal: {Arr}/{Sum}')
+                # Arr = Sum = 0
+                logger.console_logger.info("t_env: {} / {}".format(runner.t_env, args.t_max))
+                logger.console_logger.info("Estimated time left: {}. Time passed: {}".format(
+                    time_left(last_time, last_test_T, runner.t_env, args.t_max), time_str(time.time() - start_time)))
+                last_time = time.time()
+                logger.log_stat("num_circle", args.num_circle, runner.t_env)
+                # print('TEST n runs', n_test_runs)
+                last_test_T = runner.t_env
+                for _ in range(n_test_runs):
+                    episode_sample, _p, _sum = runner.run(test_mode=True)
+                    print(f'Arrive Goal: {_p}/{_sum}')
+                    print(f'low reward: {episode_sample["low_reward"]}')
+                    print(f'first obs {episode_sample["obs"][0][0][:23]}')
+                    # print(f'first goal {episode_sample["goals"][0][-1]}')
+                    print(f'last obs {episode_sample["obs"][0][-1][:23]}')
+                    print(f'goals {episode_sample["goals"][0]}')
+                    print(f'actions {episode_sample["actions"]}')
+                    print(f'ext reward {episode_sample["reward"]}')
+                    if args.mac == "offline_mac":
+                        max_ep_t = episode_sample.max_t_filled()
+                        episode_sample = episode_sample[:, :max_ep_t]
+
+                        if episode_sample.device != args.device:
+                            episode_sample.to(args.device)
+                        learner.train(episode_sample, runner.t_env, episode, show_v=True)
+                        action_learner.train(episode_sample, runner.t_env, episode, show_v=True)
 
 
-        if args.save_model and (runner.t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
-            model_save_time = runner.t_env
-            save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
-            actionmodel_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env), 'action')
-            #"results/models/{}".format(unique_token)
-            os.makedirs(save_path, exist_ok=True)
-            if args.double_q:
-                os.makedirs(save_path + '_x', exist_ok=True)
+            if args.save_model and (runner.t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
+                model_save_time = runner.t_env
+                save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
+                actionmodel_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env), 'action')
+                #"results/models/{}".format(unique_token)
+                os.makedirs(save_path, exist_ok=True)
+                if args.double_q:
+                    os.makedirs(save_path + '_x', exist_ok=True)
 
-            if args.learner == 'curiosity_learner' or args.learner == 'curiosity_learner_new' or args.learner == 'qplex_curiosity_learner'\
-                    or args.learner == 'qplex_curiosity_rnd_learner' or args.learner =='qplex_rnd_history_curiosity_learner':
-                os.makedirs(save_path + '/mac/', exist_ok=True)
-                os.makedirs(save_path + '/extrinsic_mac/', exist_ok=True)
-                os.makedirs(save_path + '/predict_mac/', exist_ok=True)
-                if args.learner == 'curiosity_learner_new' or args.learner == 'qplex_curiosity_rnd_learner'or args.learner =='qplex_rnd_history_curiosity_learner':
+                if args.learner == 'curiosity_learner' or args.learner == 'curiosity_learner_new' or args.learner == 'qplex_curiosity_learner'\
+                        or args.learner == 'qplex_curiosity_rnd_learner' or args.learner =='qplex_rnd_history_curiosity_learner':
+                    os.makedirs(save_path + '/mac/', exist_ok=True)
+                    os.makedirs(save_path + '/extrinsic_mac/', exist_ok=True)
+                    os.makedirs(save_path + '/predict_mac/', exist_ok=True)
+                    if args.learner == 'curiosity_learner_new' or args.learner == 'qplex_curiosity_rnd_learner'or args.learner =='qplex_rnd_history_curiosity_learner':
+                        os.makedirs(save_path + '/rnd_predict_mac/', exist_ok=True)
+                        os.makedirs(save_path + '/rnd_target_mac/', exist_ok=True)
+
+                if args.learner == 'rnd_learner' or args.learner == 'rnd_learner2' or args.learner =='qplex_rnd_learner'\
+                        or args.learner =='qplex_rnd_history_learner' or args.learner =='qplex_rnd_emdqn_learner' :
+                    os.makedirs(save_path + '/mac/', exist_ok=True)
                     os.makedirs(save_path + '/rnd_predict_mac/', exist_ok=True)
                     os.makedirs(save_path + '/rnd_target_mac/', exist_ok=True)
-
-            if args.learner == 'rnd_learner' or args.learner == 'rnd_learner2' or args.learner =='qplex_rnd_learner'\
-                    or args.learner =='qplex_rnd_history_learner' or args.learner =='qplex_rnd_emdqn_learner' :
-                os.makedirs(save_path + '/mac/', exist_ok=True)
-                os.makedirs(save_path + '/rnd_predict_mac/', exist_ok=True)
-                os.makedirs(save_path + '/rnd_target_mac/', exist_ok=True)
-            if args.learner == 'qplex_curiosity_single_learner' or "qplex_curiosity_single_fast_learner":
-                os.makedirs(save_path + '/mac/', exist_ok=True)
-                os.makedirs(save_path + '/predict_mac/', exist_ok=True)
-                os.makedirs(save_path + '/soft_update_target_mac/', exist_ok=True)
+                if args.learner == 'qplex_curiosity_single_learner' or "qplex_curiosity_single_fast_learner":
+                    os.makedirs(save_path + '/mac/', exist_ok=True)
+                    os.makedirs(save_path + '/predict_mac/', exist_ok=True)
+                    os.makedirs(save_path + '/soft_update_target_mac/', exist_ok=True)
 
 
-            logger.console_logger.info("Saving models to {}".format(save_path))
+                logger.console_logger.info("Saving models to {}".format(save_path))
 
-            # learner should handle saving/loading -- delegate actor save/load to mac,
-            # use appropriate filenames to do critics, optimizer states
-            learner.save_models(save_path)
-            action_learner.save_models(actionmodel_path)
+                # learner should handle saving/loading -- delegate actor save/load to mac,
+                # use appropriate filenames to do critics, optimizer states
+                learner.save_models(save_path)
+                action_learner.save_models(actionmodel_path)
 
-        episode += args.batch_size_run * args.num_circle
+            episode += args.batch_size_run * args.num_circle
 
-        if (runner.t_env - last_log_T) >= args.log_interval:
-            logger.log_stat("episode", episode, runner.t_env)
-            logger.print_recent_stats()
-            last_log_T = runner.t_env
+            if (runner.t_env - last_log_T) >= args.log_interval:
+                logger.log_stat("episode", episode, runner.t_env)
+                logger.print_recent_stats()
+                last_log_T = runner.t_env
 
     if args.is_save_buffer and save_buffer.is_from_start:
         save_buffer.is_from_start = False

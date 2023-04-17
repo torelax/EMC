@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch as th
+
 class HighLevelNoSR(nn.Module):
     """
     不带 SR 的版本 高层直接输出 goal
@@ -20,7 +22,11 @@ class HighLevelNoSR(nn.Module):
             hidden_size=args.rnn_hidden_dim,
             batch_first=True
         )
-        self.fc2 = nn.Linear(args.rnn_hidden_dim, args.goal_shape)
+        # self.goalrow = nn.Linear(args.rnn_hidden_dim, args.env_args['input_rows'])
+        # self.goalcol = nn.Linear(args.rnn_hidden_dim, args.env_args['input_cols'])
+        # self.goalrow = nn.Linear(args.rnn_hidden_dim, 1)
+        # self.goalcol = nn.Linear(args.rnn_hidden_dim, 1)
+        self.goalNN = nn.Linear(args.rnn_hidden_dim, 2)
 
     def init_hidden(self):
         # make hidden states on same device as model
@@ -39,7 +45,12 @@ class HighLevelNoSR(nn.Module):
         h_in = hidden_state.reshape(1, bs, self.args.rnn_hidden_dim).contiguous()
         x, h = self.rnn(x, h_in)
         x = x.reshape(bs * epi_len, self.args.rnn_hidden_dim)
-        q = self.fc2(x)
+        # rows = F.softmax(self.goalrow(x))
+        # cols = F.softmax(self.goalcol(x))
+        g = self.goalNN(x)
         # 对n个状态s/观察obs输出Q(g, a)
-        q = q.reshape(bs, epi_len, self.args.goal_shape)
-        return q, h
+        # g = th.cat([rows, cols], dim=-1)
+        g = g.reshape(bs, epi_len, 2)
+        # rows = rows.reshape(bs, epi_len, 1)
+        # cols = cols.reshape(bs, epi_len, 1)
+        return g, h

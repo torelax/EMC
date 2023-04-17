@@ -67,6 +67,12 @@ class EpsilonGreedyActionSelector():
 
         picked_actions = pick_random * random_actions + (1 - pick_random) * masked_q_values.max(dim=2)[1]
 
+        # if test_mode:
+        #     print(masked_q_values)
+        #     print(masked_q_values.max(dim=2))
+        #     print(pick_random)
+        #     print(picked_actions)
+
         if self.args.env == 'mmdp_game_1' and self.args.joint_random_policy_eps > 0:
             joint_random_seeds = Categorical(th.unsqueeze(self.joint_action_seeds, 0).repeat(agent_inputs.shape[0], 1)).sample().long()
             joint_random_actions = th.zeros_like(agent_inputs[:, :, 0])

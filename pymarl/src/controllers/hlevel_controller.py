@@ -90,7 +90,7 @@ class HLevelMAC:
         ### todo 
             加入上一时刻的goal
         """
-        tdn = self.args.gener_goal_interval // 2
+        tdn = self.args.gener_goal_interval // 5
         # Assumes homogenous agents with flat observations.
         # Other MACs might want to e.g. delegate building inputs to each agent
         if batch_inf:

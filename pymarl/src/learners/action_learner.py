@@ -22,7 +22,7 @@ class ActionLearner:
 
         self.last_target_update_episode = 0
 
-        self.optimiser = RMSprop(params=self.params, lr=args.lr, alpha=args.optim_alpha, eps=args.optim_eps)
+        self.optimiser = RMSprop(params=self.params, lr=args.action_lr, alpha=args.optim_alpha, eps=args.optim_eps)
 
         # a little wasteful to deepcopy (e.g. duplicates action selector), but should work for any MAC
         self.target_mac = copy.deepcopy(mac)
@@ -47,9 +47,12 @@ class ActionLearner:
         self.mac.init_hidden(batch.batch_size)
         # rnn_fast_agent.forward(batch, batch.max_seq_lenth)
         mac_out = self.mac.forward(batch, batch.max_seq_length, batch_inf=True)
+        # print(mac_out.shape)
+        # print(rewards.shape)
 
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
+        # print(chosen_action_qvals.shape)
 
         x_mac_out = mac_out.clone().detach()
         x_mac_out[avail_actions == 0] = -9999999
@@ -78,9 +81,11 @@ class ActionLearner:
         else:
             target_max_qvals = target_mac_out.max(dim=3)[0]
 
+        
         # Calculate 1-step Q-Learning targets
+        # print(target_max_qvals.shape)
         targets = rewards + self.args.gamma * (1 - terminated) * target_max_qvals
-
+        # print(targets.shape)
         if show_demo:
             tot_q_data = chosen_action_qvals.detach().cpu().numpy()
             tot_target = targets.detach().cpu().numpy()
@@ -96,6 +101,7 @@ class ActionLearner:
 
         # Td-error
         td_error = (chosen_action_qvals - targets.detach())
+        # print(td_error.shape)
 
         mask = mask.expand_as(td_error)
 
@@ -112,10 +118,12 @@ class ActionLearner:
 
         # 0-out the targets that came from padded data
         masked_td_error = td_error * mask
-
+        # print('masked td error shape: ',masked_td_error.shape)
+        # print(masked_td_error[1,:-1,0])
+        # print(masked_td_error[1,:-1,1])
         # Normal L2 loss, take mean over actual data
         loss = (masked_td_error ** 2).sum() / mask.sum()
-
+        # print(loss)
         masked_hit_prob = th.mean(is_max_action, dim=2) * mask
         hit_prob = masked_hit_prob.sum() / mask.sum()
 
