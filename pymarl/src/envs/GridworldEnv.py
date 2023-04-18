@@ -44,6 +44,9 @@ class GridworldEnv:
         self.noisy_reward_row = [i for i in range(0, self.rows // 2 - 3)]
         self.noisy_reward_index = [[i, j] for i, j in list(itertools.product(self.noisy_reward_row, self.visible_col))]
 
+        self.arrive1 = 0
+        self.arrive2 = 0
+
 
 
     def get_env_info(self):
@@ -67,6 +70,8 @@ class GridworldEnv:
         self.num+=1
         self.index = [[0, 0], [self.rows - 1, self.cols - 1]]
 
+        self.arrive1 = 0
+        self.arrive2 = 0
 
         self._update_obs()
         self._episode_steps=0
@@ -206,15 +211,18 @@ class GridworldEnv:
 
         # print('Next state is {}'.format(self.state))
         if self.penalty:
-            if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center]:
-                reward = -self.penalty_amount
+            if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center] and self.arrive1 == 0:
+                self.arrive1 = 1
+                reward = 2
                 Terminated = False
                 env_info = {'battle_won': False}
-            elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center]:
-                reward = -self.penalty_amount
+            elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0:
+                self.arrive2 = 1
+                reward = 2
                 Terminated = False
                 env_info = {'battle_won': False}
-            elif self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center]:
+            elif self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0 and self.arrive1 == 0:
+                self.arrive1, self.arrive2 = 1, 1
                 reward= 10
                 Terminated=True
                 env_info={'battle_won': True}

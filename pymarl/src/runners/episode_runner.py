@@ -147,8 +147,8 @@ class EpisodeRunner:
             actions = self.action_mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
              
             reward, terminated, env_info = self.env.step(actions[0])
-            if reward > 1:
-                print('Won and Get Reward: ', reward)
+            # if reward > 1:
+            #     print('Won and Get Reward: ', reward)
             # next_state = self.env.get_state()
             next_obs = [self.env.get_obs()]
             # low reward底层回报 每个agent获得一个

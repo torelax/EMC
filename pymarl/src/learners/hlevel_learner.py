@@ -66,6 +66,10 @@ class HLevelLearner:
         # hlevel_mac obs --> goals 
         goals_out = self.mac.forward(batch, batch.max_seq_length, batch_inf=True)
 
+        # print(goals_out.shape)
+
+        goals_out = goals_out.reshape(batch.batch_size, batch.max_seq_length, -1)
+
         # if show_demo:
             # q_i_data = chosen_action_qvals.detach().cpu().numpy()
             # q_data = (max_action_qvals - chosen_action_qvals).detach().cpu().numpy()
@@ -91,11 +95,11 @@ class HLevelLearner:
         # print(obs_goal.shape)
         obs_goal = _obs_goal.reshape(batch.batch_size, batch.max_seq_length, -1).float()
         # print(obs_goal[:, :-1, :].dtype)
-        Vtot_obs = self.mixer(obs_goal[:, :-1, :])
+        Vtot_obs : th.Tensor = self.mixer(obs_goal[:, :-1, :])
         target_Vtot_obs = self.target_mixer(obs_goal[:, 1:, :])
 
         target = rewards + self.args.gamma * (1 - terminated) * target_Vtot_obs
-        mixer_loss = th.mean(F.mse_loss(Vtot_obs, target))
+        mixer_loss = th.mean(F.mse_loss(Vtot_obs, target.detach()))
 
         # Solution 1 拿HER后的goal训练
 
@@ -107,19 +111,6 @@ class HLevelLearner:
         #     target_v_goals = self.target_mixer(target_goals_out, batch["obs"][:, 1:])
         # V(g) = V(g) + \alpha ( r + \gammaV(g') - V(g) )
         # targets = rewards + self.args.gamma * (1 - terminated) * target_v_goals
-
-        """ if show_demo:
-            tot_q_data = chosen_action_qvals.detach().cpu().numpy()
-            tot_target = targets.detach().cpu().numpy()
-            if self.mixer == None:
-                tot_q_data = np.mean(tot_q_data, axis=2)
-                tot_target = np.mean(tot_target, axis=2)
-
-            print('action_pair_%d_%d' % (save_data[0], save_data[1]), np.squeeze(q_data[:, 0]),
-                  np.squeeze(q_i_data[:, 0]), np.squeeze(tot_q_data[:, 0]), np.squeeze(tot_target[:, 0]))
-            self.logger.log_stat('action_pair_%d_%d' % (save_data[0], save_data[1]),
-                                 np.squeeze(tot_q_data[:, 0]), t_env)
-            return """
 
         # Td-error loss
         # td_error = (v_goals - targets.detach())
@@ -150,14 +141,16 @@ class HLevelLearner:
         # hit_prob = masked_hit_prob.sum() / mask.sum()
 
         # Optimise
-        goal_loss : th.Tensor = th.mean(-self.mixer(goals[:, :-1]))
+        # goal_loss : th.Tensor = th.mean(-self.mixer(goals[:, :-1]))
+        goal_loss : th.Tensor = th.mean(-self.mixer(goals_out[:, :-1]))
         self.g_optimiser.zero_grad()
         goal_loss.backward()
+        g_grad_norm = th.nn.utils.clip_grad_norm_(self.mac.parameters(), self.args.grad_norm_clip)
         self.g_optimiser.step()
 
         self.m_optimiser.zero_grad()
         mixer_loss.backward()
-        grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
+        m_grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
         self.m_optimiser.step()
 
         if (episode_num - self.last_target_update_episode) / self.args.target_update_interval >= 1.0:
@@ -167,8 +160,8 @@ class HLevelLearner:
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
             self.logger.log_stat("hlevel:mixer_loss", mixer_loss.item(), t_env)
             self.logger.log_stat("hlevel:goal_loss", goal_loss.item(), t_env)
-
-            self.logger.log_stat("hlevel:grad_norm", grad_norm, t_env)
+            self.logger.log_stat("hlevel:g_grad_norm", g_grad_norm, t_env)
+            self.logger.log_stat("hlevel:m_grad_norm", m_grad_norm, t_env)
             mask_elems = mask.sum().item()
             # self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             # self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
