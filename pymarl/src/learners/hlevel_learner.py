@@ -55,7 +55,7 @@ class HLevelLearner:
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
 
         # 简单的HER实现
-        batch['goals'][:, :-1] = batch['goals'][:, 1:]
+        # batch['goals'][:, :-1] = batch['goals'][:, 1:]
         goals = batch['goals'].reshape((batch.batch_size, batch.max_seq_length, -1))
 
         # 或者直接拿obs 拼成goal
@@ -101,6 +101,8 @@ class HLevelLearner:
         target = rewards + self.args.gamma * (1 - terminated) * target_Vtot_obs
         mixer_loss = th.mean(F.mse_loss(Vtot_obs, target.detach()))
 
+        # print('-->Vtot: ', Vtot_obs[0,0])
+
         # Solution 1 拿HER后的goal训练
 
         # if self.mixer is not None:
@@ -145,6 +147,13 @@ class HLevelLearner:
         goal_loss : th.Tensor = th.mean(-self.mixer(goals_out[:, :-1]))
         self.g_optimiser.zero_grad()
         goal_loss.backward()
+        # print('-->loss: ', -self.mixer(goals_out[:, :-1])[0,0])
+        # for parms in self.mac.parameters():	
+        #         # print('-->name:', name)
+        #         print('-->para:', parms)
+        #         print('-->grad_requirs:',parms.requires_grad)
+        #         print('-->grad_value:',parms.grad)
+        #         print("===")
         g_grad_norm = th.nn.utils.clip_grad_norm_(self.mac.parameters(), self.args.grad_norm_clip)
         self.g_optimiser.step()
 

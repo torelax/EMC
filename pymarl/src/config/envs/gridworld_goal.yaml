@@ -13,7 +13,7 @@ env_args:
 learner_log_interval: 1000
 log_interval: 1000
 runner_log_interval: 1000
-t_max: 205000  # 505000
+t_max: 305000  # 505000
 test_interval: 10000
 test_nepisode: 2
 test_greedy: True
