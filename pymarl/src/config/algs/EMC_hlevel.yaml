@@ -1,4 +1,4 @@
-train_delay_steps: 40000
+train_delay_steps: 50000
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
@@ -8,7 +8,7 @@ epsilon_anneal_time: 100000
 
 runner: "episode"
 
-buffer_size: 40000
+buffer_size: 100000
 
 # update the target network every {} episodes
 target_update_interval: 200
@@ -56,7 +56,7 @@ input_last_goal: False
 
 max_goal_gap: 6
 goal_dis: 0.5
-arrive_g_threshold: 0.2
+arrive_g_threshold: 0.5
 
 is_prioritized_buffer: True
 

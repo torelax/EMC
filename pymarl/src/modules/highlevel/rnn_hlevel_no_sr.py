@@ -47,7 +47,7 @@ class HighLevelNoSR(nn.Module):
         x = x.reshape(bs * epi_len, self.args.rnn_hidden_dim)
         # rows = F.softmax(self.goalrow(x))
         # cols = F.softmax(self.goalcol(x))
-        g = self.goalNN(x)
+        g = F.softmax(self.goalNN(x), dim=1)
         # 对n个状态s/观察obs输出Q(g, a)
         # g = th.cat([rows, cols], dim=-1)
         g = g.reshape(bs, epi_len, 2)

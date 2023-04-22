@@ -282,7 +282,7 @@ def run_sequential(args, logger):
                 last_test_T = runner.t_env
                 for _ in range(n_test_runs):
                     episode_sample, _p, _sum = runner.run(test_mode=True)
-                    print(f'Arrive Goal: {_p}/{_sum}')
+                    # print(f'Arrive Goal: {_p}/{_sum}')
                     print(f'low reward: {episode_sample["low_reward"]}')
                     print(f'first obs {episode_sample["obs"][0][0][:23]}')
                     # print(f'first goal {episode_sample["goals"][0][-1]}')

@@ -85,10 +85,13 @@ class EpisodeRunner:
         return rewards
 
     def arrive_goal(self, goals, obs):
+        '''
+        计算范围向下取整
+        '''
         t_goals = goals.clone().detach()
         for i in range(self.env.n_agents):
             # grow, gcol = th.argmax(t_goals[0][i][:11]), th.argmax(t_goals[0][i][11:])
-            grow, gcol = t_goals[0][i][0], t_goals[0][i][1]
+            grow, gcol = t_goals[0][i][0] // 1, t_goals[0][i][1] // 1
             goal = t_goals[0][i]
             crow, ccol = np.argmax(obs[0][i][:11]), np.argmax(obs[0][i][11:23])
 
@@ -147,8 +150,13 @@ class EpisodeRunner:
             actions = self.action_mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
              
             reward, terminated, env_info = self.env.step(actions[0])
-            # if reward > 1:
-            #     print('Won and Get Reward: ', reward)
+
+            if reward == 100:
+                print('------->Won and Get Reward: 100')
+            # elif reward == 30:
+            #     print('left agent get: 30')
+            # elif reward == 20:
+            #     print('right agent get 20')
             # next_state = self.env.get_state()
             next_obs = [self.env.get_obs()]
             # low reward底层回报 每个agent获得一个
@@ -199,17 +207,8 @@ class EpisodeRunner:
         elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
             self._log(cur_returns, cur_stats, log_prefix)
             if hasattr(self.mac.action_selector, "epsilon"):
-                self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
+                self.logger.log_stat("epsilon", self.action_mac.action_selector.epsilon, self.t_env)
             self.log_train_stats_t = self.t_env
-        # # print(f'Arrive Goal: {p}/{counts}')
-        # print(f'low reward: {self.batch["low_reward"]}')
-        # print(f'first obs {self.batch["obs"][0][0]}')
-        # print(f'first goal {self.batch["goals"][0][-1]}')
-        # print(f'last obs {self.batch["obs"][0][-1]}')
-        # print(f'last goal {self.batch["goals"][0][-1]}')
-        # print(f'actions {self.batch["actions"]}')
-        # print(f'ext reward {self.batch["reward"]}')
-        # print(self.batch['low_reward'].shape)
         return self.batch, p, counts
 
     def _log(self, returns, stats, prefix):

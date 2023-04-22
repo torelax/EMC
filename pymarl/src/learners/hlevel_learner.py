@@ -37,8 +37,8 @@ class HLevelLearner:
             self.target_mixer = copy.deepcopy(self.mixer)
 
         # self.optimiser = RMSprop(params=self.params, lr=args.lr, alpha=args.optim_alpha, eps=args.optim_eps)
-        self.g_optimiser = RMSprop(params=self.mac.parameters(), lr=args.lr, alpha=args.optim_alpha, eps=args.optim_eps)
-        self.m_optimiser = RMSprop(params=self.mixer.parameters(), lr=args.lr, alpha=args.optim_alpha, eps=args.optim_eps)
+        self.g_optimiser = RMSprop(params=self.mac.parameters(), lr=args.goal_lr, alpha=args.optim_alpha, eps=args.optim_eps)
+        self.m_optimiser = RMSprop(params=self.mixer.parameters(), lr=args.mixer_lr, alpha=args.optim_alpha, eps=args.optim_eps)
         # a little wasteful to deepcopy (e.g. duplicates action selector), but should work for any MAC
         
         self.target_mac = copy.deepcopy(mac)
@@ -99,7 +99,10 @@ class HLevelLearner:
         target_Vtot_obs = self.target_mixer(obs_goal[:, 1:, :])
 
         target = rewards + self.args.gamma * (1 - terminated) * target_Vtot_obs
-        mixer_loss = th.mean(F.mse_loss(Vtot_obs, target.detach()))
+        # print(target.shape)
+        # mixer_loss = ((Vtot_obs - target.detach()) ** 2).sum()
+        # mixer_loss = th.mean(F.mse_loss(Vtot_obs, target.detach()))
+        mixer_loss = F.mse_loss(Vtot_obs, target.detach())
 
         # print('-->Vtot: ', Vtot_obs[0,0])
 
@@ -143,8 +146,14 @@ class HLevelLearner:
         # hit_prob = masked_hit_prob.sum() / mask.sum()
 
         # Optimise
+
+        self.m_optimiser.zero_grad()
+        mixer_loss.backward()
+        # m_grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
+        self.m_optimiser.step()
+
         # goal_loss : th.Tensor = th.mean(-self.mixer(goals[:, :-1]))
-        goal_loss : th.Tensor = th.mean(-self.mixer(goals_out[:, :-1]))
+        goal_loss : th.Tensor = th.mean(-self.target_mixer(goals_out[:, :-1]))
         self.g_optimiser.zero_grad()
         goal_loss.backward()
         # print('-->loss: ', -self.mixer(goals_out[:, :-1])[0,0])
@@ -157,20 +166,17 @@ class HLevelLearner:
         g_grad_norm = th.nn.utils.clip_grad_norm_(self.mac.parameters(), self.args.grad_norm_clip)
         self.g_optimiser.step()
 
-        self.m_optimiser.zero_grad()
-        mixer_loss.backward()
-        m_grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
-        self.m_optimiser.step()
 
         if (episode_num - self.last_target_update_episode) / self.args.target_update_interval >= 1.0:
             self._update_targets()
             self.last_target_update_episode = episode_num
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
+            print('-->goal_loss:\n', goal_loss)
             self.logger.log_stat("hlevel:mixer_loss", mixer_loss.item(), t_env)
             self.logger.log_stat("hlevel:goal_loss", goal_loss.item(), t_env)
             self.logger.log_stat("hlevel:g_grad_norm", g_grad_norm, t_env)
-            self.logger.log_stat("hlevel:m_grad_norm", m_grad_norm, t_env)
+            # self.logger.log_stat("hlevel:m_grad_norm", m_grad_norm, t_env)
             mask_elems = mask.sum().item()
             # self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             # self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)

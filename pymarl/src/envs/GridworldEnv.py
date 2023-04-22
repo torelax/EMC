@@ -213,17 +213,17 @@ class GridworldEnv:
         if self.penalty:
             if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center] and self.arrive1 == 0:
                 self.arrive1 = 1
-                reward = 2
+                reward = 30
                 Terminated = False
                 env_info = {'battle_won': False}
             elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0:
                 self.arrive2 = 1
-                reward = 2
+                reward = 20
                 Terminated = False
                 env_info = {'battle_won': False}
             elif self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0 and self.arrive1 == 0:
                 self.arrive1, self.arrive2 = 1, 1
-                reward= 10
+                reward= 100
                 Terminated=True
                 env_info={'battle_won': True}
             else:

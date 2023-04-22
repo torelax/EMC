@@ -34,6 +34,16 @@ class ActionLearner:
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int, show_demo=False, save_data=None, show_v=False):
         # Get the relevant quantities
         rewards = batch["low_reward"][:, :-1]
+        # if batch['obs'][]
+        # print(rewards.shape)
+        # for i, bat in enumerate(batch['obs']):
+        #     for j in range(bat.shape[0] - 1):
+        #         # print(bat.shape)
+        #         if bat[j][0].equal(bat[j+1][0]):
+        #             rewards[i][j][0] = 0
+        #         if bat[j][1].equal(bat[j+1][1]):
+        #             rewards[i][j][1] = 0
+
         actions = batch["actions"][:, :-1]
         goals = batch["goals"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
