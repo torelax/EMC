@@ -122,14 +122,15 @@ def run_sequential(args, logger):
     args.unit_dim = env_info["unit_dim"]
 
     args.obs_shape = env_info["obs_shape"]
-
-    args.goal_shape = env_info["goal_shape"]
+    args.subgoal_shape = env_info["subgoal_shape"]
+    args.Goal_shape = env_info["Goal_shape"]
 
     # Default/Base scheme
     scheme = {
         "state": {"vshape": env_info["state_shape"]},  # 92
         "obs": {"vshape": env_info["obs_shape"], "group": "agents"}, # 46
-        "goals": {"vshape": env_info["goal_shape"], "group": "agents"}, # 23
+        "Goal": {"vshape": env_info["Goal_shape"], "group": "agents"},
+        "subgoal": {"vshape": env_info["subgoal_shape"], "group": "agents"}, # 23
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 2
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
@@ -145,7 +146,12 @@ def run_sequential(args, logger):
 
     env_name = args.env
     # is_prioritized_buffer: true
-    buffer = Prioritized_ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+    if args.is_prioritized_buffer:
+        buffer = Prioritized_ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+                                        args.prioritized_buffer_alpha,
+                                        preprocess=preprocess,
+                                        device="cpu" if args.buffer_cpu_only else args.device)
+        high_buffer = Prioritized_ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                                         args.prioritized_buffer_alpha,
                                         preprocess=preprocess,
                                         device="cpu" if args.buffer_cpu_only else args.device)
@@ -217,6 +223,7 @@ def run_sequential(args, logger):
             if getattr(args, "use_emdqn", False):
                 ec_buffer.update_ec(episode_batch)
             buffer.insert_episode_batch(episode_batch)
+            high_buffer.insert_episode_batch(episode_batch)
 
             # is_save_buffer: false
             if args.is_save_buffer:
@@ -257,7 +264,7 @@ def run_sequential(args, logger):
                         else:
                             td_error = learner.train(episode_sample, runner.t_env, episode)
                             ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
-                            # buffer.update_priority(sample_indices, td_error)
+                            buffer.update_priority(sample_indices, td_error)
                     else:
                         if getattr(args, "use_emdqn", False):
                             td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
@@ -282,14 +289,17 @@ def run_sequential(args, logger):
                 last_test_T = runner.t_env
                 for _ in range(n_test_runs):
                     episode_sample, _p, _sum = runner.run(test_mode=True)
-                    # print(f'Arrive Goal: {_p}/{_sum}')
-                    print(f'low reward: {episode_sample["low_reward"]}')
-                    print(f'first obs {episode_sample["obs"][0][0][:23]}')
-                    # print(f'first goal {episode_sample["goals"][0][-1]}')
-                    print(f'last obs {episode_sample["obs"][0][-1][:23]}')
-                    print(f'goals {episode_sample["goals"][0]}')
+                    g1r = th.max(episode_sample["subgoal"][0, :, 0, :11], dim=-1)[1]
+                    g1c = th.max(episode_sample["subgoal"][0, :, 0, 11:], dim=-1)[1]
+                    g2r = th.max(episode_sample["subgoal"][0, :, 1, :11], dim=-1)[1]
+                    g2c = th.max(episode_sample["subgoal"][0, :, 1, 11:], dim=-1)[1]
+                    print(f'low_reward: {episode_sample["low_reward"]}')
+                    print(f'first obs {episode_sample["obs"][0,0,:,:23]}')
+                    print(f'last obs {episode_sample["obs"][0,-1,:,:23]}')
+                    # print(f'goals {th.cat([g1r, g1c, g2r, g2c], dim=-1).reshape(-1, 4)}')
                     print(f'actions {episode_sample["actions"]}')
-                    print(f'ext reward {episode_sample["reward"]}')
+                    # print(f'ext reward {episode_sample["reward"]}')
+                    # print(f'terminated {episode_sample["terminated"][0]}')
                     if args.mac == "offline_mac":
                         max_ep_t = episode_sample.max_t_filled()
                         episode_sample = episode_sample[:, :max_ep_t]

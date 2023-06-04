@@ -45,7 +45,7 @@ class ActionLearner:
         #             rewards[i][j][1] = 0
 
         actions = batch["actions"][:, :-1]
-        goals = batch["goals"][:, :-1]
+        goals = batch["subgoal"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
         # mask
         mask = batch["filled"][:, :-1].float()

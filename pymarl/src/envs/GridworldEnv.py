@@ -11,7 +11,8 @@ class GridworldEnv:
         self.noise_num = noise_num
         self.rows, self.cols = input_rows, input_cols
         self.obs_shape = (self.rows + self.cols) * 2 + int(self.noise) * self.noise_num
-        self.goal_shape = 2 # (self.rows + self.cols)
+        self.subgoal_shape = self.obs_shape // 2 # (self.rows + self.cols)
+        self.Goal_shape = 2
         self.state_shape = self.obs_shape * 2
         self._episode_steps = 0
         self.episode_limit = episode_limit
@@ -52,7 +53,8 @@ class GridworldEnv:
     def get_env_info(self):
         return {'state_shape': self.state_shape,
                 'obs_shape': self.obs_shape,
-                'goal_shape': self.goal_shape,
+                'subgoal_shape': self.subgoal_shape,
+                'Goal_shape': self.Goal_shape,
                 'episode_limit': self.episode_limit,
                 'n_agents': self.n_agents,
                 'n_actions': self.n_actions,
@@ -75,6 +77,9 @@ class GridworldEnv:
 
         self._update_obs()
         self._episode_steps=0
+        self.desired_goal = np.array([[5, 5], [5, 6]])
+
+        return self.desired_goal
 
     def _update_obs(self):
         self.array[self.index[0][0]][self.index[0][1]] += 1
@@ -214,16 +219,16 @@ class GridworldEnv:
             if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center] and self.arrive1 == 0:
                 self.arrive1 = 1
                 reward = 30
-                Terminated = False
-                env_info = {'battle_won': False}
+                Terminated = True
+                env_info = {'battle_won': True}
             elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0:
                 self.arrive2 = 1
                 reward = 20
-                Terminated = False
+                Terminated = True
                 env_info = {'battle_won': False}
-            elif self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0 and self.arrive1 == 0:
+            elif self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and (self.arrive2 == 0 or self.arrive1 == 0):
                 self.arrive1, self.arrive2 = 1, 1
-                reward= 100
+                reward= 50
                 Terminated=True
                 env_info={'battle_won': True}
             else:

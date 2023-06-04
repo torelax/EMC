@@ -1,17 +1,17 @@
-train_delay_steps: 50000
+train_delay_steps: 0
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
 epsilon_start: 1.0
 epsilon_finish: 0.05
-epsilon_anneal_time: 100000
+epsilon_anneal_time: 50000
 
 runner: "episode"
 
-buffer_size: 100000
+buffer_size: 50000
 
 # update the target network every {} episodes
-target_update_interval: 200
+target_update_interval: 50
 
 # use the Q_Learner to train
 agent_output_type: "q"
@@ -25,7 +25,12 @@ double_q: True
 # mixer: "vdn"
 # mixer: "qmix"
 mixer: 'gmix'
-gamma: 0.99
+mixing_embed_dim: 32
+hypernet_embed: 64
+hypernet_layers: 2
+adv_hypernet_layers: 1
+adv_hypernet_embed: 64
+gamma: 0.8
 
 lr: 0.005
 
@@ -56,7 +61,7 @@ input_last_goal: False
 
 max_goal_gap: 6
 goal_dis: 0.5
-arrive_g_threshold: 0.5
+arrive_g_threshold: 0.001
 
 is_prioritized_buffer: True
 
@@ -74,3 +79,8 @@ predict_vdn_target: True
 use_qtotal_td: False
 
 name: "EMC_hlevel"
+
+pih_dim: 64
+her_gap: 3 # HER 重新标记subgoal挑选的间隔
+
+lowlevel_nn_dim: 128

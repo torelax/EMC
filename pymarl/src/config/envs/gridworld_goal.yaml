@@ -1,6 +1,6 @@
 env: gridworld
 env_args:
-  episode_limit: 50 # 30
+  episode_limit: 30 # 30
   input_rows: 11
   input_cols: 12
   map_name: "reversed"
@@ -13,7 +13,7 @@ env_args:
 learner_log_interval: 5000
 log_interval: 5000
 runner_log_interval: 5000
-t_max: 305000  # 505000
+t_max: 505000  # 505000
 test_interval: 5000
 test_nepisode: 2
 test_greedy: True
@@ -27,6 +27,6 @@ gener_goal_interval: 6
 
 action_lr: 0.002
 
-mixer_lr: 0.0001
-goal_lr: 0.0005 # 5e-4
+mixer_lr: 0.0001 # 1e-4
+goal_lr: 0.0005 # 5e-3
 critic_lr: 0.0005

@@ -36,9 +36,9 @@ class LLevelMAC:
         epi_len = t if batch_inf else 1
         avail_actions = ep_batch["avail_actions"][:, :t] if batch_inf else ep_batch["avail_actions"][:, t:t+1]
         if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
-            agent_outs, self.hidden_states, individual_Q = self.agent(agent_inputs, self.hidden_states)
+            agent_outs, individual_Q = self.agent(agent_inputs, self.hidden_states)
         else:
-            agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
+            agent_outs = self.agent(agent_inputs, self.hidden_states)
 
         # Softmax the agent outputs if they're policy logits
         if self.agent_output_type == "pi_logits":
@@ -105,7 +105,7 @@ class LLevelMAC:
             bs = batch.batch_size
             inputs = []
             inputs.append(batch["obs"][:, :t])  # bTav
-            inputs.append(batch["goals"][:, :t])
+            inputs.append(batch["subgoal"][:, :t])
             if self.args.obs_last_action:
                 last_actions = th.zeros_like(batch["actions_onehot"][:, :t])
                 last_actions[:, 1:] = batch["actions_onehot"][:, :t-1]
@@ -119,7 +119,7 @@ class LLevelMAC:
             bs = batch.batch_size
             inputs = []
             inputs.append(batch["obs"][:, t])  # b1av
-            inputs.append(batch["goals"][:, t])
+            inputs.append(batch["subgoal"][:, t])
             if self.args.obs_last_action:
                 if t == 0:
                     inputs.append(th.zeros_like(batch["actions_onehot"][:, t]))
@@ -133,7 +133,7 @@ class LLevelMAC:
 
     def _get_input_shape(self, scheme):
         input_shape = scheme["obs"]["vshape"]
-        input_shape += scheme['goals']['vshape']
+        input_shape += scheme['subgoal']['vshape']
         if self.args.obs_last_action:
             input_shape += scheme["actions_onehot"]["vshape"][0]
         if self.args.obs_agent_id:
