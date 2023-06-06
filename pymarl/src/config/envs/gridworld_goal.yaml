@@ -10,12 +10,12 @@ env_args:
   noise: False
   noise_num: 10
 
-learner_log_interval: 5000
-log_interval: 5000
-runner_log_interval: 5000
-t_max: 505000  # 505000
+learner_log_interval: 2000
+log_interval: 2000
+runner_log_interval: 2000
+t_max: 305000  # 505000
 test_interval: 5000
-test_nepisode: 2
+test_nepisode: 5
 test_greedy: True
 demo_interval: 1000
 
@@ -23,10 +23,10 @@ save_model: False
 use_tensorboard: True
 save_model_interval: 20000
 
-gener_goal_interval: 6
+gener_goal_interval: 4
 
-action_lr: 0.002
+action_lr: 0.001
 
 mixer_lr: 0.0001 # 1e-4
-goal_lr: 0.0005 # 5e-3
+goal_lr: 0.0003 # 5e-3
 critic_lr: 0.0005

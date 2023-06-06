@@ -86,38 +86,35 @@ class HLevelMAC:
         ### @TODO 
             加入上一时刻的goal
         """
-        tdn = self.args.gener_goal_interval // 5
         # Assumes homogenous agents with flat observations.
         # Other MACs might want to e.g. delegate building inputs to each agent
         if batch_inf:
             bs = batch.batch_size
             inputs = []
-            inputs.append(batch["obs"][:, :t:tdn])  # bTav
-            inputs.append(batch['Goal'][:, :t:tdn])
+            inputs.append(batch["obs"][:, :t, :, :23])  # bTav
+            inputs.append(batch['Goal'][:, :t])
             # inputs.append(batch['goals'][:, :t:tdn])
             # current False
             if self.args.input_last_goal:
-                last_goals = th.zero_like(batch["goals"][:,:t:tdn])
-                last_goals[:, 1:] = batch["goals"][:, :t-tdn:tdn]
+                last_goals = th.zero_like(batch["goals"][:,:t])
+                last_goals[:, 1:] = batch["goals"][:, :t-1]
                 inputs.append(last_goals)
             if self.args.obs_last_action:
-                last_actions = th.zeros_like(batch["actions_onehot"][:, :t:tdn])
-                last_actions[:, 1:] = batch["actions_onehot"][:, :t-1:tdn]
+                last_actions = th.zeros_like(batch["actions_onehot"][:, :t])
+                last_actions[:, 1:] = batch["actions_onehot"][:, :t-1]
                 inputs.append(last_actions)
             if self.args.obs_agent_id:
                 inputs.append(th.eye(self.n_agents, device=batch.device).view(1, 1, self.n_agents, self.n_agents).expand(bs, t, -1, -1))
 
-            inputs = th.cat([x.transpose(1, 2).reshape(bs*self.n_agents, t // tdn, -1) for x in inputs], dim=2)
+            inputs = th.cat([x.transpose(1, 2).reshape(bs*self.n_agents, t, -1) for x in inputs], dim=2)
             return inputs
         else:
             bs = batch.batch_size
             inputs = []
-            # (b, 31, 2, 46)
-            inputs.append(batch["obs"][:, t])  # b1av
+            inputs.append(batch["obs"][:, t, :, :23])  # b1av
             inputs.append(batch['Goal'][:, t])
             # (b, 1, 2, 46) -- (b, 2, 46)
             # print('input append: ', batch['obs'].shape)
-            # print('input append: ', batch['obs'][:, t].shape)
             if self.args.obs_last_action:
                 if t == 0:
                     inputs.append(th.zeros_like(batch["actions_onehot"][:, t]))
@@ -130,7 +127,7 @@ class HLevelMAC:
             return inputs
 
     def _get_input_shape(self, scheme):
-        input_shape = scheme["obs"]["vshape"] # 46
+        input_shape = scheme["obs"]["vshape"] // 2 # 46
         input_shape += scheme["Goal"]["vshape"] # 2
         if self.args.input_last_goal:
             input_shape += scheme["subgoal"]['vshape'] # 46

@@ -64,21 +64,26 @@ class HLevelLearner:
                 if j + count < batch.max_seq_length and batch['terminated'][i][j + count] == 0:
                     _batch['subgoal'][i][j][0] = _batch['obs'][i][j + count][0][:self.args.subgoal_shape]
                     _batch['subgoal'][i][j][1] = _batch['obs'][i][j + count][1][:self.args.subgoal_shape]
-                    high_rewards[i][j] = th.sum(_batch['reward'][i][j : j + self.args.her_gap])
+                    high_rewards[i][j] = 0
+                    for k in range(count):
+                        high_rewards[i][j] += (self.args.gamma ** k) * _batch['reward'][i][j + k]
                     count = (count + self.args.her_gap - 1) % self.args.her_gap
                 else:
                     break
             for j in range(endIndex - self.args.her_gap, endIndex + 1):
-                _batch['subgoal'][i][j][0] = _batch['obs'][i][endIndex][0][:self.args.subgoal_shape]
-                _batch['subgoal'][i][j][1] = _batch['obs'][i][endIndex][1][:self.args.subgoal_shape]
-                high_rewards[i][j] = th.sum(_batch['reward'][i][j : endIndex])
+                _batch['subgoal'][i][j][0] = _batch['obs'][i][endIndex+1][0][:self.args.subgoal_shape]
+                _batch['subgoal'][i][j][1] = _batch['obs'][i][endIndex+1][1][:self.args.subgoal_shape]
+                high_rewards[i][j] = 0
+                for k in range(j, endIndex + 1):
+                    high_rewards[i][j] += (self.args.gamma ** k) * _batch['reward'][i][k]
+                # high_rewards[i][j] = th.sum(_batch['reward'][i][j : endIndex + 1])
                 # pass
 
-        print('old', batch['subgoal'][2])
-        print('new', _batch['subgoal'][2])
+        # print('old', batch['subgoal'][2])
+        # print('new', _batch['subgoal'][2])
         # Get the relevant quantities
         rewards = batch["reward"][:, :-1]
-        obs = batch['obs'][:, :, :, :23].reshape(batch.batch_size, batch.max_seq_length, -1)
+        obs = batch['obs'][:, :, :, :self.args.subgoal_shape].reshape(batch.batch_size, batch.max_seq_length, -1)
         # rewards = batch["reward"]
         # rewards[:, 1:] = batch["reward"][:, :-1]
         # rewards[:, 0] = 0
@@ -122,9 +127,8 @@ class HLevelLearner:
         #     target_max_qvals = th.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
         # else:
         #     target_max_qvals = target_mac_out.max(dim=3)[0]
-
         # Mixer
-        Qtot : th.Tensor = self.mixer(_batch['state'][:, :-1], Goal[:, :-1], subgoals[:, :-1])
+        Qtot : th.Tensor = self.mixer(obs[:, :-1], Goal[:, :-1], subgoals[:, :-1])
         # print('obs', obs[-1,3])
         # print('subg_', subg_[-1,3])
         # print('vtot_goal', self.mixer(subg_)[-1,3])
@@ -137,18 +141,14 @@ class HLevelLearner:
         subg_r = subg_r.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
         subg_c = subg_c.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
         # Gumbel Softmax
-        # print(subg_r[3:6])
         subg_r = gumbel_softmax(subg_r)
         subg_c = gumbel_softmax(subg_c)
 
         next_sg = th.cat([subg_r, subg_c], dim=-1)
         next_sg = next_sg.reshape(batch.batch_size, batch.max_seq_length, -1)[:, 1:, ...]
 
-        targetQtot : th.Tensor = self.target_mixer(_batch['state'][:, 1:], Goal[:, 1:], next_sg)
+        targetQtot : th.Tensor = self.target_mixer(obs[:, 1:], Goal[:, 1:], next_sg)
 
-        # target_Vtot_obs = _target_Vtot_obs[:, :, :]
-        # target_Vtot_obs[:, :-1, :] = _target_Vtot_obs[:, 1:, :]
-        # target_Vtot_obs[:, -1] = 0
         # print('--->terminated\n', terminated[:, -1])
         # print(high_rewards.shape)
         # print(terminated.shape)
@@ -163,24 +163,7 @@ class HLevelLearner:
         # print('--->masked td error[-1]:\n', masked_td_error[-1])
         mixer_loss = (masked_td_error ** 2).sum() / mask.sum()
 
-        # if self.mixer is not None:
-        #     # chosen_action_qvals = self.mixer(chosen_action_qvals, batch["obs"][:, :-1])
-        #     # 输入subgoal 输出V(subgoal)
-        #     v_subgoal = self.mixer(subg_) # V_tot(goal)
-
-        #     target_v_subgoal = self.target_mixer(target_subg_, batch["obs"][:, 1:])
-        # V(g) = V(g) + \alpha ( r + \gammaV(g') - V(g) )
-        # targets = rewards + self.args.gamma * (1 - terminated) * target_v_subgoal
-
-        # Td-error loss
-        # td_error = (v_subgoal - targets.detach())
-
-        # loss = 1 //2 * (targets - v_subgoal).sum() // 
-        # mixer_loss = th.mean(F.mse_loss(targets - v_subgoal))
-
-        # mask = mask.expand_as(td_error)
-
-        if show_v:
+        """ if show_v:
             mask_elems = mask.sum().item()
 
             actual_v = rewards.clone().detach()
@@ -189,20 +172,19 @@ class HLevelLearner:
             self.logger.log_stat("test_actual_return", (actual_v * mask).sum().item() / mask_elems, t_env)
 
             # self.logger.log_stat("test_q_taken_mean", (chosen_action_qvals * mask).sum().item()/mask_elems, t_env)
-            return
+            return """
 
         # Optimise
         self.m_optimiser.zero_grad()
         mixer_loss.backward()
-        m_grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
+        # m_grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
         self.m_optimiser.step()
 
         # lowLoss: -Q(S, g, G)
-        subgoal_loss : th.Tensor = -self.target_mixer(_batch['state'][:, :-1], Goal[:, :-1], subgoal[:, :-1])
+        subgoal_loss : th.Tensor = -self.target_mixer(obs[:, :-1], Goal[:, :-1], subgoal[:, :-1])
         masked_sg_loss = (subgoal_loss * mask).sum() / mask.sum()
         self.g_optimiser.zero_grad()
         masked_sg_loss.backward()
-        # print('-->loss: ', -self.mixer(subg_[:, :-1])[0,0])
         # for parms in self.mac.parameters():	
         #         # print('-->name:', name)
         #         print('-->para:', parms)
@@ -221,7 +203,7 @@ class HLevelLearner:
             self.logger.log_stat("hlevel:mixer_loss", mixer_loss.item(), t_env)
             self.logger.log_stat("hlevel:subgoal_loss", masked_sg_loss.item(), t_env)
             # self.logger.log_stat("hlevel:g_grad_norm", g_grad_norm, t_env)
-            self.logger.log_stat("hlevel:m_grad_norm", m_grad_norm, t_env)
+            # self.logger.log_stat("hlevel:m_grad_norm", m_grad_norm, t_env)
             # self.logger.log_stat("Mixer-Vtot(5,5,5,6)", vtot5556, t_env)
             mask_elems = mask.sum().item()
             # self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)

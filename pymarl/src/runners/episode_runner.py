@@ -57,16 +57,16 @@ class EpisodeRunner:
 
     def cal_low_reward(self, subgoal, obs, test_mode=False, SR=None):
         ''''''
-        t_subgoal = subgoal.clone().detach()
+        t_subgoal = subgoal.clone().detach().cpu()
         rewards = []
 
         if SR:
             rewards = [SR[obs][subgoal]]
         else: # 之间计算goal 和 state的距离
             for i in range(self.env.n_agents):
-                grow, gcol = th.argmax(t_subgoal[0][i][:11]), th.argmax(t_subgoal[0][i][11:])
+                grow, gcol = th.argmax(t_subgoal[0][i][:self.env.rows]), th.argmax(t_subgoal[0][i][self.env.rows:])
                 # grow, gcol = t_subgoal[0][i][0], t_subgoal[0][i][1]
-                crow, ccol = np.argmax(obs[0][i][:11]), np.argmax(obs[0][i][11:23])
+                crow, ccol = np.argmax(obs[0][i][:self.env.rows]), np.argmax(obs[0][i][self.env.rows:self.env.cols+self.env.cols])
                 if test_mode:
                     print('Agent %d Row and Cols', i, grow, gcol, crow, ccol)
                 rewards.append(-np.linalg.norm([grow - crow, gcol - ccol], ord=2) / 10)
@@ -77,12 +77,12 @@ class EpisodeRunner:
 
     def arrive_goal(self, subgoal, obs):
         '''计算范围向下取整'''
-        t_subgoal = subgoal.clone().detach()
+        t_subgoal = subgoal.clone().detach().cpu()
         for i in range(self.env.n_agents):
-            grow, gcol = th.argmax(t_subgoal[0][i][:11]), th.argmax(t_subgoal[0][i][11:])
+            grow, gcol = th.argmax(t_subgoal[0][i][:self.env.rows]), th.argmax(t_subgoal[0][i][self.env.rows:+self.env.cols])
             # grow, gcol = t_subgoal[0][i][0] // 1, t_subgoal[0][i][1] // 1
             goal = t_subgoal[0][i]
-            crow, ccol = np.argmax(obs[0][i][:11]), np.argmax(obs[0][i][11:23])
+            crow, ccol = np.argmax(obs[0][i][:self.env.rows]), np.argmax(obs[0][i][self.env.rows:23])
 
             # if np.linalg.norm(t_subgoal[0][i].numpy() - obs[0][i][:self.args.goal_shape], ord=2) > self.args.arrive_g_threshold:
             if np.linalg.norm([grow - crow, gcol - ccol], ord=2) < self.args.arrive_g_threshold:    
@@ -98,12 +98,9 @@ class EpisodeRunner:
         self.mac.init_hidden(batch_size=self.batch_size)
         self.action_mac.init_hidden(batch_size=self.batch_size)
         subgoal = []
-        p = counts = 0
+        p = counts = acc = 0
 
         while not terminated:
-
-            # for i in range(self.args.gener_goal_interval):
-            #     pass
 
             # highlevel 输出 goal
             # if self.t % self.args.gener_goal_interval == 0 or self.arrive_goal(subgoal, [self.env.get_obs()]):
@@ -115,8 +112,6 @@ class EpisodeRunner:
 
             # subgoal = th.tensor([[[5., 5.],[5., 6.]]])
             # print('subgoal: ', subgoal.shape) # 1,2,23
-            # print('obs: ' , th.tensor([self.env.get_obs()]).shape)
-            # print('state: ', th.tensor([self.env.get_state()]).shape)
             # _obs = [self.env.get_obs()]
 
             pre_transition_data = {
@@ -144,6 +139,7 @@ class EpisodeRunner:
             reward, terminated, env_info = self.env.step(actions[0])
 
             if reward >= 50:
+                acc = 1
                 print('------->Won and Get Reward: 50')
             # elif reward >= 30:
             #     print('------->Get Reward 30')
@@ -209,7 +205,7 @@ class EpisodeRunner:
         # HER修正
         
 
-        return self.batch, p, counts
+        return self.batch, acc, counts
 
     def _log(self, returns, stats, prefix):
         self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.t_env)

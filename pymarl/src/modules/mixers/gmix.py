@@ -17,7 +17,7 @@ class GMixer(nn.Module):
         self.args = args
 
         # self.input_shape = self.args.goal_shape * self.args.n_agents + self.args.state_shape + self.args.dgoal_shape
-        self.input_shape = (self.args.subgoal_shape + self.args.Goal_shape) * self.args.n_agents + self.args.state_shape 
+        self.input_shape = (self.args.subgoal_shape + self.args.Goal_shape) * self.args.n_agents + self.args.state_shape // 2
 
         self.state_dim = args.state_shape
         self.embed_dim = args.mixing_embed_dim
@@ -45,7 +45,6 @@ class GMixer(nn.Module):
         self.fc3 = nn.Linear(64, 1)
         # self.n_agents = args.n_agents
         
-
 
     def init_hidden(self):
         # make hidden states on same device as model

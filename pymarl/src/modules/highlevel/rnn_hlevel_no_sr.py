@@ -24,10 +24,10 @@ class HighLevelNoSR(nn.Module):
             batch_first=True
         )
         self.goalrow = nn.Sequential(nn.Linear(args.pih_dim, args.pih_dim // 2),
-                        nn.ReLU(),
+                        nn.LeakyReLU(),
                         nn.Linear(args.pih_dim // 2, args.env_args['input_rows']))
         self.goalcol = nn.Sequential(nn.Linear(args.pih_dim, args.pih_dim // 2),
-                        nn.ReLU(),
+                        nn.LeakyReLU(),
                         nn.Linear(args.pih_dim // 2, args.env_args['input_cols']))
         # self.goalNN = nn.Linear(args.pih_dim, 2)
 
@@ -44,7 +44,7 @@ class HighLevelNoSR(nn.Module):
         epi_len = inputs.shape[1]   # episode lenth?
         num_feat = inputs.shape[2]  # n agent?
         inputs = inputs.reshape(bs * epi_len, num_feat)   
-        x = F.relu(self.fc1(inputs))
+        x = F.leaky_relu(self.fc1(inputs))
         # x = x.reshape(bs, epi_len, self.args.pih_dim)
         # h_in = hidden_state.reshape(1, bs, self.args.pih_dim).contiguous()
         # x, h = self.rnn(x, h_in)

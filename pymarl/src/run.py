@@ -196,6 +196,7 @@ def run_sequential(args, logger):
 
     if args.use_cuda:
         learner.cuda()
+        action_learner.cuda()
 
     
     # start training
@@ -206,7 +207,7 @@ def run_sequential(args, logger):
 
     start_time = time.time()
     last_time = start_time
-    Arr = Sum = 0
+    Acc = Sum = 0
     _p, _sum = 0, 0
 
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
@@ -217,9 +218,9 @@ def run_sequential(args, logger):
         if not args.is_batch_rl:
             # Run for a whole episode at a time
             # batch 带上 goal
-            episode_batch, _p, _sum = runner.run(test_mode=False)
-            Arr += _p
-            Sum += _sum
+            episode_batch, _acc, _sum = runner.run(test_mode=False)
+            Acc += _acc
+            Sum += 1
             if getattr(args, "use_emdqn", False):
                 ec_buffer.update_ec(episode_batch)
             buffer.insert_episode_batch(episode_batch)
@@ -264,6 +265,7 @@ def run_sequential(args, logger):
                         else:
                             td_error = learner.train(episode_sample, runner.t_env, episode)
                             ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
+                            # print(sample_indices, td_error)
                             buffer.update_priority(sample_indices, td_error)
                     else:
                         if getattr(args, "use_emdqn", False):
@@ -293,11 +295,10 @@ def run_sequential(args, logger):
                     g1c = th.max(episode_sample["subgoal"][0, :, 0, 11:], dim=-1)[1]
                     g2r = th.max(episode_sample["subgoal"][0, :, 1, :11], dim=-1)[1]
                     g2c = th.max(episode_sample["subgoal"][0, :, 1, 11:], dim=-1)[1]
-                    print(f'low_reward: {episode_sample["low_reward"]}')
-                    print(f'first obs {episode_sample["obs"][0,0,:,:23]}')
-                    print(f'last obs {episode_sample["obs"][0,-1,:,:23]}')
-                    # print(f'goals {th.cat([g1r, g1c, g2r, g2c], dim=-1).reshape(-1, 4)}')
-                    print(f'actions {episode_sample["actions"]}')
+                    print(f'Acc/All: {Acc}/{Sum}')
+                    # print(f'low_reward: {episode_sample["low_reward"]}')
+                    # print(f'first obs {episode_sample["obs"][0,0,:,:23]}')
+                    # print(f'actions {episode_sample["actions"]}')
                     # print(f'ext reward {episode_sample["reward"]}')
                     # print(f'terminated {episode_sample["terminated"][0]}')
                     if args.mac == "offline_mac":
