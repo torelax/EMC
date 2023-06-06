@@ -4,7 +4,7 @@ env_args:
   input_cols: 12
   map_name: "reversed"
   penalty: True
-  penalty_amount: 0.5
+  penalty_amount: 2
   path: Null
 
 learner_log_interval: 1000

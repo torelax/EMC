@@ -8,3 +8,8 @@ results/
 *__pycache__
 
 __pycache__/
+
+EMC_smac_env/dist
+EMC_smac_env/build
+
+EMC_smac_env/SMAC.egg-info

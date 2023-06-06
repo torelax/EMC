@@ -22,7 +22,7 @@ class ActionLearner:
 
         self.last_target_update_episode = 0
 
-        self.optimiser = RMSprop(params=self.params, lr=args.lr, alpha=args.optim_alpha, eps=args.optim_eps)
+        self.optimiser = RMSprop(params=self.params, lr=args.action_lr, alpha=args.optim_alpha, eps=args.optim_eps)
 
         # a little wasteful to deepcopy (e.g. duplicates action selector), but should work for any MAC
         self.target_mac = copy.deepcopy(mac)
@@ -34,8 +34,18 @@ class ActionLearner:
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int, show_demo=False, save_data=None, show_v=False):
         # Get the relevant quantities
         rewards = batch["low_reward"][:, :-1]
+        # if batch['obs'][]
+        # print(rewards.shape)
+        # for i, bat in enumerate(batch['obs']):
+        #     for j in range(bat.shape[0] - 1):
+        #         # print(bat.shape)
+        #         if bat[j][0].equal(bat[j+1][0]):
+        #             rewards[i][j][0] = 0
+        #         if bat[j][1].equal(bat[j+1][1]):
+        #             rewards[i][j][1] = 0
+
         actions = batch["actions"][:, :-1]
-        goals = batch["goals"][:, :-1]
+        goals = batch["subgoal"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
         # mask
         mask = batch["filled"][:, :-1].float()
@@ -47,9 +57,12 @@ class ActionLearner:
         self.mac.init_hidden(batch.batch_size)
         # rnn_fast_agent.forward(batch, batch.max_seq_lenth)
         mac_out = self.mac.forward(batch, batch.max_seq_length, batch_inf=True)
+        # print(mac_out.shape)
+        # print(rewards.shape)
 
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
+        # print(chosen_action_qvals.shape)
 
         x_mac_out = mac_out.clone().detach()
         x_mac_out[avail_actions == 0] = -9999999
@@ -78,9 +91,11 @@ class ActionLearner:
         else:
             target_max_qvals = target_mac_out.max(dim=3)[0]
 
+        
         # Calculate 1-step Q-Learning targets
+        # print(target_max_qvals.shape)
         targets = rewards + self.args.gamma * (1 - terminated) * target_max_qvals
-
+        # print(targets.shape)
         if show_demo:
             tot_q_data = chosen_action_qvals.detach().cpu().numpy()
             tot_target = targets.detach().cpu().numpy()
@@ -96,6 +111,7 @@ class ActionLearner:
 
         # Td-error
         td_error = (chosen_action_qvals - targets.detach())
+        # print(td_error.shape)
 
         mask = mask.expand_as(td_error)
 
@@ -112,10 +128,12 @@ class ActionLearner:
 
         # 0-out the targets that came from padded data
         masked_td_error = td_error * mask
-
+        # print('masked td error shape: ',masked_td_error.shape)
+        # print(masked_td_error[1,:-1,0])
+        # print(masked_td_error[1,:-1,1])
         # Normal L2 loss, take mean over actual data
         loss = (masked_td_error ** 2).sum() / mask.sum()
-
+        # print(loss)
         masked_hit_prob = th.mean(is_max_action, dim=2) * mask
         hit_prob = masked_hit_prob.sum() / mask.sum()
 
@@ -130,13 +148,13 @@ class ActionLearner:
             self.last_target_update_episode = episode_num
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
-            self.logger.log_stat("loss", loss.item(), t_env)
-            self.logger.log_stat("hit_prob", hit_prob.item(), t_env)
-            self.logger.log_stat("grad_norm", grad_norm, t_env)
+            self.logger.log_stat("llevel:loss", loss.item(), t_env)
+            self.logger.log_stat("llevel:hit_prob", hit_prob.item(), t_env)
+            self.logger.log_stat("llevel:grad_norm", grad_norm, t_env)
             mask_elems = mask.sum().item()
-            self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
-            self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
-            self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            self.logger.log_stat("llevel:td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
+            self.logger.log_stat("llevel:q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            self.logger.log_stat("llevel:target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.log_stats_t = t_env
 
     def _update_targets(self):

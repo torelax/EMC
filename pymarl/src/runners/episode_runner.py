@@ -56,6 +56,7 @@ class EpisodeRunner:
         terminated = False
         episode_return = 0
         self.mac.init_hidden(batch_size=self.batch_size)
+        ac = 0
 
         while not terminated:
 
@@ -64,9 +65,6 @@ class EpisodeRunner:
                 "avail_actions": [self.env.get_avail_actions()],
                 "obs": [self.env.get_obs()]
             }
-            print(self.args.state_shape)
-            print(th.tensor(self.env.get_obs()).shape)
-            print(self.env.get_state().shape)
             self.batch.update(pre_transition_data, ts=self.t)
 
             # Pass the entire batch of experiences up till now to the agents
@@ -75,7 +73,8 @@ class EpisodeRunner:
 
             reward, terminated, env_info = self.env.step(actions[0])
             episode_return += reward
-
+            if reward == 50:
+                ac = 1
             post_transition_data = {
                 "actions": actions,
                 "reward": [(reward,)],
@@ -117,7 +116,7 @@ class EpisodeRunner:
                 self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
             self.log_train_stats_t = self.t_env
 
-        return self.batch
+        return self.batch, ac
 
     def _log(self, returns, stats, prefix):
         self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.t_env)

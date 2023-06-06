@@ -238,12 +238,14 @@ def run_sequential(args, logger):
     if args.env == 'matrix_game_1' or args.env == 'matrix_game_2' or args.env == 'matrix_game_3' \
             or args.env == 'mmdp_game_1':
         last_demo_T = -args.demo_interval - 1
-
+    eps_num = ac = 0
     while runner.t_env <= args.t_max:
 
         if not args.is_batch_rl:
             # Run for a whole episode at a time
-            episode_batch = runner.run(test_mode=False)
+            episode_batch, _ac = runner.run(test_mode=False)
+            ac += _ac
+            eps_num += 1
             if getattr(args, "use_emdqn", False):
                 ec_buffer.update_ec(episode_batch)
             buffer.insert_episode_batch(episode_batch)
@@ -333,6 +335,7 @@ def run_sequential(args, logger):
         n_test_runs = max(1, args.test_nepisode // runner.batch_size)
         if (runner.t_env - last_test_T) / args.test_interval >= 1.0 :
 
+            logger.console_logger.info(f"won rate: {ac}/{eps_num}")
             logger.console_logger.info("t_env: {} / {}".format(runner.t_env, args.t_max))
             logger.console_logger.info("Estimated time left: {}. Time passed: {}".format(
                 time_left(last_time, last_test_T, runner.t_env, args.t_max), time_str(time.time() - start_time)))

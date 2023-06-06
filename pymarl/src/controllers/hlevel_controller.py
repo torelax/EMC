@@ -30,32 +30,28 @@ class HLevelMAC:
         return chosen_actions
     
     # avaliable goals
-    def select_goals(self, ep_batch, t_ep, t_env=None, bs=slice(None), test_mode=False):
+    def select_subgoal(self, ep_batch, t_ep, t_env=None, bs=slice(None), test_mode=False):
         # avail_actions = ep_batch["avail_actions"][:, t_ep]
         if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
-            goal_outputs,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
+            goal_outputr,goal_outputc,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
         else:
-            goal_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        return goal_outputs
+            goal_outputr,goal_outputc = self.forward(ep_batch, t_ep, test_mode=test_mode)
+        return th.cat([goal_outputr, goal_outputc], dim=-1)
 
     def forward(self, ep_batch, t, test_mode=False, batch_inf=False):
-        # for k in ep_batch:
-        #     print(ep_batch[k].shape)
         agent_inputs = self._build_inputs(ep_batch, t, batch_inf)
-
-        # 期望输入 1, 2, 23 观测  --> 1, 1, 46
-        print('final input shape: ', agent_inputs.shape)
         epi_len = t if batch_inf else 1
 
-        goal_outs, self.hidden_states = self.hlevel(agent_inputs, self.hidden_states)
-
-        # 期望输出 1, 1, 46 --> 1, 2, 23
-        print('goal shape1: ', goal_outs.shape)
+        # goal_outr, goal_outc, self.hidden_states = self.hlevel(agent_inputs, self.hidden_states)
+        goal_outr, goal_outc = self.hlevel(agent_inputs, self.hidden_states)
+        # goal_outs = th.cat([goal_outr, goal_outc], dim=-1)
 
         if batch_inf:
-            return goal_outs.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
+            return goal_outr.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2), \
+                    goal_outc.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
         else:
-            return goal_outs.view(ep_batch.batch_size, self.n_agents, -1)
+            return goal_outr.view(ep_batch.batch_size, self.n_agents, -1), \
+                    goal_outc.view(ep_batch.batch_size, self.n_agents, -1)
 
     def init_hidden(self, batch_size):
         self.hidden_states = self.hlevel.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
@@ -64,7 +60,7 @@ class HLevelMAC:
         return self.hlevel.parameters()
 
     def load_state(self, other_mac):
-        self.hlevel.load_state_dict(other_mac.agent.state_dict())
+        self.hlevel.load_state_dict(other_mac.hlevel.state_dict())
 
     def cuda(self):
         self.hlevel.cuda()
@@ -87,38 +83,38 @@ class HLevelMAC:
 
     def _build_inputs(self, batch, t, batch_inf):
         """
-        ### todo 
+        ### @TODO 
             加入上一时刻的goal
         """
-        tdn = self.args.gener_goal_interval // 2
         # Assumes homogenous agents with flat observations.
         # Other MACs might want to e.g. delegate building inputs to each agent
         if batch_inf:
             bs = batch.batch_size
             inputs = []
-            inputs.append(batch["obs"][:, :t:tdn])  # bTav
+            inputs.append(batch["obs"][:, :t, :, :23])  # bTav
+            inputs.append(batch['Goal'][:, :t])
+            # inputs.append(batch['goals'][:, :t:tdn])
             # current False
             if self.args.input_last_goal:
-                last_goals = th.zero_like(batch["goals"][:,:t:tdn])
-                last_goals[:, 1:] = batch["goals"][:, :t-tdn:tdn]
+                last_goals = th.zero_like(batch["goals"][:,:t])
+                last_goals[:, 1:] = batch["goals"][:, :t-1]
                 inputs.append(last_goals)
-            # if self.args.obs_last_action:
-            #     last_actions = th.zeros_like(batch["actions_onehot"][:, :t:tdn])
-            #     last_actions[:, 1:] = batch["actions_onehot"][:, :t-1:tdn]
-            #     inputs.append(last_actions)
-            # if self.args.obs_agent_id:
-            #     inputs.append(th.eye(self.n_agents, device=batch.device).view(1, 1, self.n_agents, self.n_agents).expand(bs, t, -1, -1))
+            if self.args.obs_last_action:
+                last_actions = th.zeros_like(batch["actions_onehot"][:, :t])
+                last_actions[:, 1:] = batch["actions_onehot"][:, :t-1]
+                inputs.append(last_actions)
+            if self.args.obs_agent_id:
+                inputs.append(th.eye(self.n_agents, device=batch.device).view(1, 1, self.n_agents, self.n_agents).expand(bs, t, -1, -1))
 
-            inputs = th.cat([x.transpose(1, 2).reshape(bs*self.n_agents, t // tdn, -1) for x in inputs], dim=2)
+            inputs = th.cat([x.transpose(1, 2).reshape(bs*self.n_agents, t, -1) for x in inputs], dim=2)
             return inputs
         else:
             bs = batch.batch_size
             inputs = []
-            # (b, 31, 2, 46)
-            inputs.append(batch["obs"][:, t])  # b1av
+            inputs.append(batch["obs"][:, t, :, :23])  # b1av
+            inputs.append(batch['Goal'][:, t])
             # (b, 1, 2, 46) -- (b, 2, 46)
             # print('input append: ', batch['obs'].shape)
-            # print('input append: ', batch['obs'][:, t].shape)
             if self.args.obs_last_action:
                 if t == 0:
                     inputs.append(th.zeros_like(batch["actions_onehot"][:, t]))
@@ -131,9 +127,10 @@ class HLevelMAC:
             return inputs
 
     def _get_input_shape(self, scheme):
-        input_shape = scheme["obs"]["vshape"] # 46
+        input_shape = scheme["obs"]["vshape"] // 2 # 46
+        input_shape += scheme["Goal"]["vshape"] # 2
         if self.args.input_last_goal:
-            input_shape += scheme["goals"]['vshape'] # 46
+            input_shape += scheme["subgoal"]['vshape'] # 46
         if self.args.obs_last_action:
             input_shape += scheme["actions_onehot"]["vshape"][0] # 5
         if self.args.obs_agent_id: # 2

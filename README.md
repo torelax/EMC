@@ -1,3 +1,10 @@
+<details>
+
+<summary>start cmd</summary>
+`python ./src/main.py --config=EMC_hlevel --env-config=gridworld_goal with env_args.map_name=reversed`
+
+</details>
+
 # Episodic Multi-agent Reinforcement Learning with Curiosity-driven Exploration
 
 ## Note

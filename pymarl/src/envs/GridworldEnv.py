@@ -4,7 +4,7 @@ import os
 
 
 class GridworldEnv:
-    def __init__(self,seed,map_name,episode_limit=30,input_rows=9, input_cols=12,penalty=True,penalty_amount=1,
+    def __init__(self,seed,map_name,episode_limit=30,input_rows=9, input_cols=12,penalty=True,penalty_amount=2,
                  noise=False, noise_num=1, path=None, stochastic=0., noisy_reward=0.):
         n_agents = 2
         self.noise = noise
@@ -43,6 +43,9 @@ class GridworldEnv:
         self.noisy_reward_row = [i for i in range(0, self.rows // 2 - 3)]
         self.noisy_reward_index = [[i, j] for i, j in list(itertools.product(self.noisy_reward_row, self.visible_col))]
 
+        self.arrive1 = 0
+        self.arrive2 = 0
+        self.arrive3 = 0
 
 
     def get_env_info(self):
@@ -65,9 +68,15 @@ class GridworldEnv:
         self.num+=1
         self.index = [[0, 0], [self.rows - 1, self.cols - 1]]
 
+        self.arrive1 = 0
+        self.arrive2 = 0
+        self.arrive3 = 0
 
         self._update_obs()
         self._episode_steps=0
+        self.desired_goal = np.array([[5, 5], [5, 6]])
+
+        return self.desired_goal
 
     def _update_obs(self):
         self.array[self.index[0][0]][self.index[0][1]] += 1
@@ -153,7 +162,7 @@ class GridworldEnv:
             avail_actions[0,1] = 0
         if current_obs[1] == 0:
             avail_actions[0,2] = 0
-        if current_obs[1] == self.center - 1:
+        if current_obs[1] == self.cols - 1:
             avail_actions[0,3] = 0
         current_obs = self.index[1]
         if current_obs[0] == 0:
@@ -162,7 +171,7 @@ class GridworldEnv:
             avail_actions[1,1] = 0
         if current_obs[1] == self.cols - 1:
             avail_actions[1,3] = 0
-        if current_obs[1] == self.center:
+        if current_obs[1] == 0:
             avail_actions[1,2] = 0
         return avail_actions.tolist()
 
@@ -183,13 +192,13 @@ class GridworldEnv:
                             sampled_action -= 1
 
             if action == 0:
-                self.index[idx][0] -= 1
+                self.index[idx][0] -= 1 # row - 1
             elif action == 1:
-                self.index[idx][0] += 1
+                self.index[idx][0] += 1 # row + 1
             elif action == 2:
-                self.index[idx][1] -= 1
+                self.index[idx][1] -= 1 # col - 1
             elif action == 3:
-                self.index[idx][1] += 1
+                self.index[idx][1] += 1 # col + 1
 
         # for i in range(self.rows):
         #     print(self.array[i])
@@ -204,20 +213,38 @@ class GridworldEnv:
 
         # print('Next state is {}'.format(self.state))
         if self.penalty:
-            if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center]:
-                reward = -self.penalty_amount
+            """ if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center] and self.arrive1 == 0:
+                self.arrive1 = 1
+                reward = 30
                 Terminated = False
                 env_info = {'battle_won': False}
-            elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center]:
-                reward = -self.penalty_amount
+            elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0:
+                self.arrive2 = 1
+                reward = 20
                 Terminated = False
-                env_info = {'battle_won': False}
-            elif self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center]:
-                reward= 10
+                env_info = {'battle_won': False} """
+            if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center]:
+                self.arrive1, self.arrive2 = 1, 1
+                reward = 50
                 Terminated=True
                 env_info={'battle_won': True}
+            elif (self.index[0] == [3, 1] or self.index[1] == [3, 1]) and self.arrive1 == 0:
+                self.arrive1 = 1
+                reward = 5
+                Terminated = False
+                env_info = {'battle_won': False}
+            elif (self.index[0] == [8, 10] or self.index[1] == [8, 10]) and self.arrive2 == 0:
+                self.arrive2 = 1
+                reward = 5
+                Terminated = False
+                env_info = {'battle_won': False}
+            elif (self.index[0] == [10, 0] or self.index[1] == [10, 0]) and self.arrive3 == 0:
+                self.arrive3 = 1
+                reward = 8
+                Terminated = False
+                env_info = {'battle_won': False}
             else:
-                reward = 0
+                reward = -self.penalty_amount
                 Terminated = False
                 env_info ={'battle_won': False}
         else:

@@ -1,0 +1,23 @@
+nohup: ignoring input
+[DEBUG 01:41:22] git.cmd Popen(['git', 'version'], cwd=/home/hellone/Project/emc/pymarl, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'version'], cwd=/home/hellone/Project/emc/pymarl, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.util Failed checking if running in CYGWIN due to: FileNotFoundError(2, "No such file or directory: '/usr/bin/uname'")
+[DEBUG 01:41:22] git.cmd Popen(['git', 'diff', '--cached', '--abbrev=40', '--full-index', '--raw'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'diff', '--abbrev=40', '--full-index', '--raw'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'cat-file', '--batch-check'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=<valid stream>)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'diff', '--cached', '--abbrev=40', '--full-index', '--raw'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'diff', '--abbrev=40', '--full-index', '--raw'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'cat-file', '--batch-check'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=<valid stream>)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'diff', '--cached', '--abbrev=40', '--full-index', '--raw'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'diff', '--abbrev=40', '--full-index', '--raw'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=None)
+[DEBUG 01:41:22] git.cmd Popen(['git', 'cat-file', '--batch-check'], cwd=/home/hellone/Project/emc, universal_newlines=False, shell=None, istream=<valid stream>)
+./src/main.py:90: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3,and in 3.9 it will stop working
+  if isinstance(v, collections.Mapping):
+[INFO 01:41:22] root Saving to FileStorageObserver in results/sacred.
+sacred.utils.NamedConfigNotFoundError: Named config not found: "2". Available config values are: ()
+
+pygame 2.3.0 (SDL 2.24.2, Python 3.7.16)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+88888888888 reversed
+run_commandline
+
