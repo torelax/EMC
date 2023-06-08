@@ -2,6 +2,7 @@ from modules.agents import REGISTRY as agent_REGISTRY
 from modules.highlevel import REGISTRY as hlevel_REGISTRY
 from components.action_selectors import REGISTRY as action_REGISTRY
 import torch as th
+from utils.gumbel_softmax import gumbel_softmax
 
 
 # This multi-agent controller shares parameters between agents
@@ -33,10 +34,17 @@ class HLevelMAC:
     def select_subgoal(self, ep_batch, t_ep, t_env=None, bs=slice(None), test_mode=False):
         # avail_actions = ep_batch["avail_actions"][:, t_ep]
         if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
-            goal_outputr,goal_outputc,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
+            sg_r,sg_c,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
         else:
-            goal_outputr,goal_outputc = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        return th.cat([goal_outputr, goal_outputc], dim=-1)
+            sg_r,sg_c = self.forward(ep_batch, t_ep, test_mode=test_mode)
+            # print(goal_outputr.shape)
+        sg_r = sg_r.reshape(self.n_agents, -1)
+        sg_c = sg_c.reshape(self.n_agents, -1)
+        sg_r = gumbel_softmax(sg_r)
+        sg_c = gumbel_softmax(sg_c)
+        sg_r = sg_r.reshape(1, self.n_agents, -1)
+        sg_c = sg_c.reshape(1, self.n_agents, -1)
+        return th.cat([sg_r, sg_c], dim=-1)
 
     def forward(self, ep_batch, t, test_mode=False, batch_inf=False):
         agent_inputs = self._build_inputs(ep_batch, t, batch_inf)

@@ -79,7 +79,7 @@ class EpisodeRunner:
         '''计算范围向下取整'''
         t_subgoal = subgoal.clone().detach().cpu()
         for i in range(self.env.n_agents):
-            grow, gcol = th.argmax(t_subgoal[0][i][:self.env.rows]), th.argmax(t_subgoal[0][i][self.env.rows:+self.env.cols])
+            grow, gcol = th.argmax(t_subgoal[0][i][:self.env.rows]), th.argmax(t_subgoal[0][i][self.env.rows:self.env.rows+self.env.cols])
             # grow, gcol = t_subgoal[0][i][0] // 1, t_subgoal[0][i][1] // 1
             goal = t_subgoal[0][i]
             crow, ccol = np.argmax(obs[0][i][:self.env.rows]), np.argmax(obs[0][i][self.env.rows:23])
@@ -106,6 +106,8 @@ class EpisodeRunner:
             # if self.t % self.args.gener_goal_interval == 0 or self.arrive_goal(subgoal, [self.env.get_obs()]):
             if subgoal == [] or self.arrive_goal(subgoal, [self.env.get_obs()]) or self.t % self.args.gener_goal_interval == 0:
                 subgoal = self.mac.select_subgoal(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
+                if test_mode:
+                    print(subgoal)
                 p += self.arrive_goal(subgoal, [self.env.get_obs()])
                 counts += 1
                 # print('Goal and subgoal', desired_goal, subgoal)
