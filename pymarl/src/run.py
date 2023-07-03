@@ -123,6 +123,7 @@ def run_sequential(args, logger):
 
     args.obs_shape = env_info["obs_shape"]
     args.subgoal_shape = env_info["subgoal_shape"]
+    args.n_subgoals = env_info["n_subgoals"]
     args.Goal_shape = env_info["Goal_shape"]
 
     # Default/Base scheme
@@ -130,7 +131,9 @@ def run_sequential(args, logger):
         "state": {"vshape": env_info["state_shape"]},  # 92
         "obs": {"vshape": env_info["obs_shape"], "group": "agents"}, # 46
         "Goal": {"vshape": env_info["Goal_shape"], "group": "agents"},
-        "subgoal": {"vshape": env_info["subgoal_shape"], "group": "agents"}, # 23
+        # "subgoal": {"vshape": env_info["subgoal_shape"], "group": "agents"}, # 23
+        "subgoals": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 23
+        "avail_subgoals": {"vshape": (env_info["n_subgoals"],), "group": "agents", "dtype": th.int},
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 2
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "reward": {"vshape": (1,)},
@@ -291,10 +294,10 @@ def run_sequential(args, logger):
                 last_test_T = runner.t_env
                 for _ in range(n_test_runs):
                     episode_sample, _p, _sum = runner.run(test_mode=True)
-                    g1r = th.max(episode_sample["subgoal"][0, :, 0, :11], dim=-1)[1]
-                    g1c = th.max(episode_sample["subgoal"][0, :, 0, 11:], dim=-1)[1]
-                    g2r = th.max(episode_sample["subgoal"][0, :, 1, :11], dim=-1)[1]
-                    g2c = th.max(episode_sample["subgoal"][0, :, 1, 11:], dim=-1)[1]
+                    # g1r = th.max(episode_sample["subgoal"][0, :, 0, :11], dim=-1)[1]
+                    # g1c = th.max(episode_sample["subgoal"][0, :, 0, 11:], dim=-1)[1]
+                    # g2r = th.max(episode_sample["subgoal"][0, :, 1, :11], dim=-1)[1]
+                    # g2c = th.max(episode_sample["subgoal"][0, :, 1, 11:], dim=-1)[1]
                     print(f'Acc/All: {Acc}/{Sum}')
                     # print(f'low_reward: {episode_sample["low_reward"]}')
                     # print(f'first obs {episode_sample["obs"][0,0,:,:23]}')

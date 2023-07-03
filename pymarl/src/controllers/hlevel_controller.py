@@ -32,33 +32,48 @@ class HLevelMAC:
     
     # avaliable goals
     def select_subgoal(self, ep_batch, t_ep, t_env=None, bs=slice(None), test_mode=False):
-        # avail_actions = ep_batch["avail_actions"][:, t_ep]
-        if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
-            sg_r,sg_c,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        else:
-            sg_r,sg_c = self.forward(ep_batch, t_ep, test_mode=test_mode)
-            # print(goal_outputr.shape)
-        sg_r = sg_r.reshape(self.n_agents, -1)
-        sg_c = sg_c.reshape(self.n_agents, -1)
-        sg_r = gumbel_softmax(sg_r)
-        sg_c = gumbel_softmax(sg_c)
-        sg_r = sg_r.reshape(1, self.n_agents, -1)
-        sg_c = sg_c.reshape(1, self.n_agents, -1)
-        return th.cat([sg_r, sg_c], dim=-1)
+        avail_subgoals = ep_batch["avail_subgoals"][:, t_ep]
+        # if hasattr(self.args, 'use_individual_Q') and self.args.use_individual_Q:
+        #     sg_r,sg_c,_ = self.forward(ep_batch, t_ep, test_mode=test_mode)
+        # else:
+        #     sg_r,sg_c = self.forward(ep_batch, t_ep, test_mode=test_mode)
+        #     # print(goal_outputr.shape)
+        # sg_r = sg_r.reshape(self.n_agents, -1)
+        # sg_c = sg_c.reshape(self.n_agents, -1)
+        # sg_r = gumbel_softmax(sg_r)
+        # sg_c = gumbel_softmax(sg_c)
+        # sg_r = sg_r.reshape(1, self.n_agents, -1)
+        # sg_c = sg_c.reshape(1, self.n_agents, -1)
+        # return th.cat([sg_r, sg_c], dim=-1)
+        # print(avail_subgoals)
+        subgoals_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode)
+        # print(subgoals_outputs.shape)
+        chosen_subgoals = self.action_selector.select_action(subgoals_outputs[bs], avail_subgoals[bs], t_env, test_mode=test_mode)
+        # avail goals
+        return chosen_subgoals
 
-    def forward(self, ep_batch, t, test_mode=False, batch_inf=False):
+    def forward(self, ep_batch, t, test_mode=False, batch_inf=False, space='cont'):
         agent_inputs = self._build_inputs(ep_batch, t, batch_inf)
         epi_len = t if batch_inf else 1
 
         # goal_outr, goal_outc, self.hidden_states = self.hlevel(agent_inputs, self.hidden_states)
-        goal_outr, goal_outc = self.hlevel(agent_inputs, self.hidden_states)
+        if space == 'cont':
+            subgoal = self.hlevel(agent_inputs, self.hidden_states)
+        else:
+            goal_outr, goal_outc = self.hlevel(agent_inputs, self.hidden_states)
         # goal_outs = th.cat([goal_outr, goal_outc], dim=-1)
-
+        # print(subgoal.shape)
         if batch_inf:
-            return goal_outr.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2), \
+            if space == 'cont':
+                return subgoal.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
+            else:
+                return goal_outr.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2), \
                     goal_outc.view(ep_batch.batch_size, self.n_agents, epi_len, -1).transpose(1, 2)
         else:
-            return goal_outr.view(ep_batch.batch_size, self.n_agents, -1), \
+            if space == 'cont':
+                return subgoal.view(ep_batch.batch_size, self.n_agents, -1)
+            else:
+                return goal_outr.view(ep_batch.batch_size, self.n_agents, -1), \
                     goal_outc.view(ep_batch.batch_size, self.n_agents, -1)
 
     def init_hidden(self, batch_size):
@@ -99,7 +114,7 @@ class HLevelMAC:
         if batch_inf:
             bs = batch.batch_size
             inputs = []
-            inputs.append(batch["obs"][:, :t, :, :23])  # bTav
+            inputs.append(batch["obs"][:, :t])  # bTav
             inputs.append(batch['Goal'][:, :t])
             # inputs.append(batch['goals'][:, :t:tdn])
             # current False
@@ -119,7 +134,7 @@ class HLevelMAC:
         else:
             bs = batch.batch_size
             inputs = []
-            inputs.append(batch["obs"][:, t, :, :23])  # b1av
+            inputs.append(batch["obs"][:, t])  # b1av
             inputs.append(batch['Goal'][:, t])
             # (b, 1, 2, 46) -- (b, 2, 46)
             # print('input append: ', batch['obs'].shape)
@@ -135,7 +150,7 @@ class HLevelMAC:
             return inputs
 
     def _get_input_shape(self, scheme):
-        input_shape = scheme["obs"]["vshape"] // 2 # 46
+        input_shape = scheme["obs"]["vshape"] # 2 + 5 * 5 -- 27
         input_shape += scheme["Goal"]["vshape"] # 2
         if self.args.input_last_goal:
             input_shape += scheme["subgoal"]['vshape'] # 46

@@ -1,0 +1,8 @@
+obs内有墙时 goal的可选
+
+lowlevel goal输入相对位置
+
+low奖励的缩放系数随距离变化
+
+goal high mixer改为qmix
+highlevel 改为离散 取消gumbel softmax?

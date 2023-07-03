@@ -23,13 +23,14 @@ class HighLevelNoSR(nn.Module):
             hidden_size=args.pih_dim,
             batch_first=True
         )
-        self.goalrow = nn.Sequential(nn.Linear(args.pih_dim, args.pih_dim // 2),
+        """ self.goalrow = nn.Sequential(nn.Linear(args.pih_dim, args.pih_dim // 2),
                         nn.LeakyReLU(),
                         nn.Linear(args.pih_dim // 2, args.env_args['input_rows']))
         self.goalcol = nn.Sequential(nn.Linear(args.pih_dim, args.pih_dim // 2),
                         nn.LeakyReLU(),
-                        nn.Linear(args.pih_dim // 2, args.env_args['input_cols']))
-        # self.goalNN = nn.Linear(args.pih_dim, 2)
+                        nn.Linear(args.pih_dim // 2, args.env_args['input_cols'])) """
+        
+        self.fc2 = nn.Linear(args.pih_dim, args.n_subgoals)
 
     def init_hidden(self):
         # make hidden states on same device as model
@@ -45,21 +46,17 @@ class HighLevelNoSR(nn.Module):
         num_feat = inputs.shape[2]  # n agent?
         inputs = inputs.reshape(bs * epi_len, num_feat)   
         x = F.leaky_relu(self.fc1(inputs))
-        # x = x.reshape(bs, epi_len, self.args.pih_dim)
-        # h_in = hidden_state.reshape(1, bs, self.args.pih_dim).contiguous()
-        # x, h = self.rnn(x, h_in)
+        x = x.reshape(bs, epi_len, self.args.pih_dim)
+        h_in = hidden_state.reshape(1, bs, self.args.pih_dim).contiguous()
+        x, h = self.rnn(x, h_in)
         x = x.reshape(bs * epi_len, self.args.pih_dim)
 
-        rows = F.softmax(self.goalrow(x), dim=-1)
-        cols = F.softmax(self.goalcol(x), dim=-1)
+        # rows = F.softmax(self.goalrow(x), dim=-1)
+        # cols = F.softmax(self.goalcol(x), dim=-1)
         # g = F.softmax(self.goalNN(x), dim=1)
-        # 对n个状态s/观察obs输出Q(g, a)
-        # g = th.cat([rows, cols], dim=-1)
-        # g = g.reshape(bs, epi_len, 2)
-        rows = rows.reshape(bs, epi_len, -1)
-        cols = cols.reshape(bs, epi_len, -1)
-        # print(bs, epi_len, num_feat, rows.shape, cols.shape)
         # g = th.cat([rows, cols], dim=-1)
         # g = g.reshape(bs, epi_len, -1)
+        q = self.fc2(x)
+        q = q.reshape(bs, epi_len, self.args.n_subgoals)
 
-        return rows, cols
+        return q

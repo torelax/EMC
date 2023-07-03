@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 
-class GMixer(nn.Module):
+class GoalCritic(nn.Module):
     '''
     ### input: 
     state, tot_subgoal
@@ -12,18 +12,17 @@ class GMixer(nn.Module):
     作为Critic拟合`Q_tot(s,g)`
     '''
     def __init__(self, args):
-        super(GMixer, self).__init__()
+        super(GoalCritic(), self).__init__()
 
         self.args = args
-        self.n_agents = args.n_agents
-        
+
         # self.input_shape = self.args.goal_shape * self.args.n_agents + self.args.state_shape + self.args.dgoal_shape
         self.input_shape = (self.args.subgoal_shape + self.args.Goal_shape) * self.args.n_agents + self.args.state_shape // 2
 
-        self.state_dim = args.state_shape + args.Goal_shape
+        self.state_dim = args.state_shape
         self.embed_dim = args.mixing_embed_dim
 
-        if getattr(args, "hypernet_layers", 1) == 1:
+        """ if getattr(args, "hypernet_layers", 1) == 1:
 
             self.hyper_w_1 = nn.Linear(self.state_dim, self.embed_dim * self.n_agents)
             self.hyper_w_final = nn.Linear(self.state_dim, self.embed_dim)
@@ -38,17 +37,13 @@ class GMixer(nn.Module):
         elif getattr(args, "hypernet_layers", 1) > 2:
             raise Exception("Sorry >2 hypernet layers is not implemented!")
         else:
-            raise Exception("Error setting number of hypernet layers.")
+            raise Exception("Error setting number of hypernet layers.") """
 
         self.fc1 = nn.Linear(self.input_shape, 128)
         # self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, 1)
         # self.n_agents = args.n_agents
-
-        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_dim),
-                               nn.ReLU(),
-                               nn.Linear(self.embed_dim, 1))
         
 
     def init_hidden(self):
@@ -56,10 +51,6 @@ class GMixer(nn.Module):
         return self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_()
 
     def forward(self, state, Goal, subgoal):
-
-        states = th.cat([state, Goal], dim=-1)
-
-
         inputs = th.cat([state, Goal, subgoal], dim=-1)
 
         bs = inputs.shape[0] # batch size

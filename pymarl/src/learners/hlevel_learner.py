@@ -3,6 +3,7 @@ from components.episode_buffer import EpisodeBatch
 from modules.mixers.vdn import VDNMixer
 from modules.mixers.qmix import QMixer
 from modules.mixers.gmix import GMixer
+from modules.critics.goalcritic import GoalCritic
 import torch as th
 from torch.optim import RMSprop
 import torch.nn.functional as F
@@ -141,6 +142,7 @@ class HLevelLearner:
         subg_r = subg_r.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
         subg_c = subg_c.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
         # Gumbel Softmax
+        # TODO next_sg 不需要gumbel softmax保留梯度
         subg_r = gumbel_softmax(subg_r)
         subg_c = gumbel_softmax(subg_c)
 
@@ -181,7 +183,7 @@ class HLevelLearner:
         self.m_optimiser.step()
 
         # lowLoss: -Q(S, g, G)
-        subgoal_loss : th.Tensor = -self.target_mixer(obs[:, :-1], Goal[:, :-1], subgoal[:, :-1])
+        subgoal_loss : th.Tensor = -th.log(self.target_mixer(obs[:, :-1], Goal[:, :-1], subgoal[:, :-1]))
         masked_sg_loss = (subgoal_loss * mask).sum() / mask.sum()
         self.g_optimiser.zero_grad()
         masked_sg_loss.backward()

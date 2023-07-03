@@ -70,7 +70,7 @@ def _get_config_alg(params, arg_name, subfolder,map_name):
         config_name="EMC_toygame"
     elif map_name=="reversed":
         config_name="EMC_hlevel"
-    elif map_name=="grid_goal":
+    elif map_name=="wall4":
         config_name="EMC_hlevel"
 
 

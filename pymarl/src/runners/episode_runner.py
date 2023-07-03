@@ -7,6 +7,8 @@ from envs.GridworldEnv import GridworldEnv
 from controllers.hlevel_controller import HLevelMAC
 from controllers.llevel_controller import LLevelMAC
 
+import utils.goalpos as goalpos
+
 import torch as th
 
 class EpisodeRunner:
@@ -55,39 +57,51 @@ class EpisodeRunner:
         self.t = 0
         return desired_goal
 
-    def cal_low_reward(self, subgoal, obs, test_mode=False, SR=None):
-        ''''''
-        t_subgoal = subgoal.clone().detach().cpu()
-        rewards = []
+    def getlowReward(self, goalPos, obs, test_mode=False, SR=None):
+        if self.env.map_name == 'wall4':
+            # t_subgoal = goalPos.clone().detach().cpu()
+            rewards = []
+            if SR:
+                rewards = [SR[obs][goalPos]]
+            else: # 之间计算goal 和 state的距离
+                for i in range(self.env.n_agents):
+                    grow, gcol = goalPos[i][0], goalPos[i][1]
+                    crow, ccol = obs[0][i][0], obs[0][i][1]
+                    if test_mode:
+                        print('Agent %d Row and Cols', i, grow, gcol, crow, ccol)
+                    rewards.append(-(abs(grow-crow) + abs(gcol-ccol)))
+                    if np.linalg.norm([grow - crow, gcol - ccol], ord=2) < self.args.arrive_g_threshold:
+                        rewards[i] += 10
+            return rewards
+        else:
+            raise ValueError("canot get map_name")
 
-        if SR:
-            rewards = [SR[obs][subgoal]]
-        else: # 之间计算goal 和 state的距离
-            for i in range(self.env.n_agents):
-                grow, gcol = th.argmax(t_subgoal[0][i][:self.env.rows]), th.argmax(t_subgoal[0][i][self.env.rows:])
-                # grow, gcol = t_subgoal[0][i][0], t_subgoal[0][i][1]
-                crow, ccol = np.argmax(obs[0][i][:self.env.rows]), np.argmax(obs[0][i][self.env.rows:self.env.cols+self.env.cols])
-                if test_mode:
-                    print('Agent %d Row and Cols', i, grow, gcol, crow, ccol)
-                rewards.append(-np.linalg.norm([grow - crow, gcol - ccol], ord=2) / 10)
-                # rewards.append()
-                if np.linalg.norm([grow - crow, gcol - ccol], ord=2) < self.args.arrive_g_threshold:
-                    rewards[i] += 2
-        return rewards
+    def get_pos(self, obs, goal):
+        if self.env.map_name == 'wall4':
+            cur_posx, cur_posy = obs
 
     def arrive_goal(self, subgoal, obs):
         '''计算范围向下取整'''
-        t_subgoal = subgoal.clone().detach().cpu()
-        for i in range(self.env.n_agents):
-            grow, gcol = th.argmax(t_subgoal[0][i][:self.env.rows]), th.argmax(t_subgoal[0][i][self.env.rows:self.env.rows+self.env.cols])
-            # grow, gcol = t_subgoal[0][i][0] // 1, t_subgoal[0][i][1] // 1
-            goal = t_subgoal[0][i]
-            crow, ccol = np.argmax(obs[0][i][:self.env.rows]), np.argmax(obs[0][i][self.env.rows:23])
-
-            # if np.linalg.norm(t_subgoal[0][i].numpy() - obs[0][i][:self.args.goal_shape], ord=2) > self.args.arrive_g_threshold:
-            if np.linalg.norm([grow - crow, gcol - ccol], ord=2) < self.args.arrive_g_threshold:    
+        if self.env.map_name == 'wall4':
+            # t_subgoal = subgoal.clone().detach().cpu()
+            # for i in range(self.env.n_agents):
+                # grow, gcol = th.argmax(t_subgoal[0][i][:self.env.rows]), th.argmax(t_subgoal[0][i][self.env.rows:self.env.rows+self.env.cols])
+                # goal = t_subgoal[0][i]
+                # crow, ccol = np.argmax(obs[0][i][:self.env.rows]), np.argmax(obs[0][i][self.env.rows:23])
+                # if np.linalg.norm(t_subgoal[0][i].numpy() - obs[0][i][:self.args.goal_shape], ord=2) > self.args.arrive_g_threshold:
+            if np.linalg.norm([subgoal[0] - int(obs[0]), subgoal[1] - int(obs[1])], ord=2) < self.args.arrive_g_threshold:    
                 return True
-        return False
+            return False
+        else:
+            raise ValueError("canot get map_name")
+
+    def obsGoal(self, obs, Goal):
+        if self.env.map_name == 'wall4':
+            if abs(obs[0]-Goal[0]) <= self.env.obs_range and abs(obs[1]-Goal[1]) <= self.env.obs_range:
+                return True
+            else:
+                return False
+
 
     # todo HER
     def run(self, test_mode=False):
@@ -97,38 +111,48 @@ class EpisodeRunner:
         episode_return = 0
         self.mac.init_hidden(batch_size=self.batch_size)
         self.action_mac.init_hidden(batch_size=self.batch_size)
-        subgoal = []
+        subgoal = [[],[]]
         p = counts = acc = 0
-
+        goalPos = [[2,2],[2,2]]
         while not terminated:
 
-            # highlevel 输出 goal
-            # if self.t % self.args.gener_goal_interval == 0 or self.arrive_goal(subgoal, [self.env.get_obs()]):
-            if subgoal == [] or self.arrive_goal(subgoal, [self.env.get_obs()]) or self.t % self.args.gener_goal_interval == 0:
-                subgoal = self.mac.select_subgoal(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
-                if test_mode:
-                    print(subgoal)
-                p += self.arrive_goal(subgoal, [self.env.get_obs()])
-                counts += 1
-                # print('Goal and subgoal', desired_goal, subgoal)
+            _obs = [self.env.get_obs()]
+            pre_data = {
+                "avail_subgoals": [self.env.get_avail_subgoals()]
+            }
 
-            # subgoal = th.tensor([[[5., 5.],[5., 6.]]])
+            self.batch.update(pre_data, ts=self.t)
+            # highlevel 输出 goal
+            for i in range(self.env.n_agents):
+                # TODO 单个智能体到达替换单个的subgoal
+                # print(_obs[0, i])
+                if subgoal == [] or self.arrive_goal(goalPos[i], _obs[0][i]) or self.t % self.args.gener_goal_interval == 0:
+                    subgoal = self.mac.select_subgoal(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
+                    # print(subgoal.shape)
+                    if test_mode:
+                        print(subgoal)
+                    # p += self.arrive_goal(subgoal, _obs[i])
+                    for j in range(self.env.n_agents):
+                        goalPos[j] = goalpos.getgoalPos(_obs[0][j], int(subgoal[0, j]), self.env.obs_range)
+                    counts += 1
+                    break
+            
             # print('subgoal: ', subgoal.shape) # 1,2,23
-            # _obs = [self.env.get_obs()]
+            
+            # 修改每个agent的subgoal
+            # for i in range(self.env.n_agents):
+            #     if self.obsGoal(_obs[0, i], desired_goal[i]):
+            #         subgoal[0, i] = desired_goal[i]
 
             pre_transition_data = {
                 "state": [self.env.get_state()],
                 "avail_actions": [self.env.get_avail_actions()],
-                "obs": [self.env.get_obs()], # 1, 2, 46
+                "obs": [_obs], # 1, 2, 46
                 "Goal": [desired_goal],
-                # 所有智能体的目标goal
-                "subgoal": subgoal  # 预期 1, 4
+                "subgoals": subgoal  # 预期 1, 4
             }
             # print(desired_goal)
-            # get_obs() --> (2, 23)
             # print('trans data[\'obs\']', th.tensor([self.env.get_obs()]).shape)  # 1, 2, 23
-            # print('trans data[\'avail_actions\']', th.tensor([self.env.get_avail_actions()]).shape)  # 1, 2, 5
-            # print(self.env.get_obs()) # (2， 23)
 
             self.batch.update(pre_transition_data, ts=self.t)
 
@@ -143,19 +167,11 @@ class EpisodeRunner:
             if reward >= 50:
                 acc = 1
                 print('------->Won and Get Reward: 50')
-            # elif reward >= 30:
-            #     print('------->Get Reward 30')
-            # elif reward > 20:
-            #     print('------->Get Reward 20')
-            # elif reward == 30:
-            #     print('left agent get: 30')
-            # elif reward == 20:
-            #     print('right agent get 20')
             # next_state = self.env.get_state()
             next_obs = [self.env.get_obs()]
             # low reward底层回报 每个agent获得一个
             # subgoal [1,2,23] obs [1,2,46]
-            low_reward = self.cal_low_reward(subgoal, next_obs, test_mode)
+            low_reward = self.getlowReward(goalPos, next_obs, test_mode)
             # low_reward = self.env.cal_low_reward(subgoal, next_state)
             
             episode_return += reward
