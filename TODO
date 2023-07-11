@@ -6,3 +6,21 @@ low奖励的缩放系数随距离变化
 
 goal high mixer改为qmix
 highlevel 改为离散 取消gumbel softmax?
+
+高层数据采集的形式
+
+智能体看到其他智能体的条件
+
+
+!!! high level subgoal的选择加上epsilon greedy / gumbel softmax这种
+
+
+-[] 新环境qmix方法比较
+-[] subgoal greedy 和 action greedy一慢一快缩减
+-[x] low level 的奖励不再根据距离，而仅根据到达目标与否
+-[] subgoal 和 action要分离/共享网络？
+-[] obs goal 到达目标更改目标的新判定
+
+-[] importance sampling/off-policy correction
+
+-[] heatmap

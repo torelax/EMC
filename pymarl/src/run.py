@@ -26,6 +26,8 @@ import numpy as np
 import copy as cp
 import random
 
+heatmap_path = ''
+
 def run(_run, _config, _log):
 
     # check args sanity
@@ -58,6 +60,7 @@ def run(_run, _config, _log):
         tb_logs_direc = os.path.join(dirname(dirname(abspath(__file__))), "results", "tb_logs", args.env,
                                      args.env_args['map_name'])
         tb_exp_direc = os.path.join(tb_logs_direc, "{}").format(unique_token)
+        # heatmap_path = tb_exp_direc
         logger.setup_tb(tb_exp_direc)
         tb_info_get = os.path.join("results", "tb_logs", args.env, args.env_args['map_name'], "{}").format(unique_token)
         _log.info("saving tb_logs to " + tb_info_get)
@@ -66,7 +69,7 @@ def run(_run, _config, _log):
     logger.setup_sacred(_run)
 
     # Run and train
-    run_sequential(args=args, logger=logger)
+    run_sequential(args=args, logger=logger, heatmap_path = tb_exp_direc)
 
     # Clean up after finishing
     print("Exiting Main")
@@ -108,7 +111,7 @@ def save_one_buffer(args, save_buffer, env_name, from_start=False):
     save_buffer.save(path_name)
 
 
-def run_sequential(args, logger):
+def run_sequential(args, logger, heatmap_path=None):
 
     # Init runner so we can get env info
     runner : EpisodeRunner = r_REGISTRY[args.runner](args=args, logger=logger)
@@ -125,6 +128,7 @@ def run_sequential(args, logger):
     args.subgoal_shape = env_info["subgoal_shape"]
     args.n_subgoals = env_info["n_subgoals"]
     args.Goal_shape = env_info["Goal_shape"]
+    args.goalPos_shape = 2
 
     # Default/Base scheme
     scheme = {
@@ -132,6 +136,7 @@ def run_sequential(args, logger):
         "obs": {"vshape": env_info["obs_shape"], "group": "agents"}, # 46
         "Goal": {"vshape": env_info["Goal_shape"], "group": "agents"},
         # "subgoal": {"vshape": env_info["subgoal_shape"], "group": "agents"}, # 23
+        "goalPos": {"vshape": (2,), "group": "agents", "dtype": th.long},
         "subgoals": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 23
         "avail_subgoals": {"vshape": (env_info["n_subgoals"],), "group": "agents", "dtype": th.int},
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long}, # 2
@@ -188,7 +193,7 @@ def run_sequential(args, logger):
 
     # Give runner the scheme
     # runner = episode
-    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac, action_mac=action_mac)
+    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac, action_mac=action_mac, heatmappath=heatmap_path)
     # Learner
     learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args, groups=groups)
 
@@ -269,7 +274,7 @@ def run_sequential(args, logger):
                             td_error = learner.train(episode_sample, runner.t_env, episode)
                             ltd_error = action_learner.train(episode_sample, runner.t_env, episode)
                             # print(sample_indices, td_error)
-                            buffer.update_priority(sample_indices, td_error)
+                            # buffer.update_priority(sample_indices, ltd_error)
                     else:
                         if getattr(args, "use_emdqn", False):
                             td_error = learner.train(episode_sample, runner.t_env, episode, ec_buffer=ec_buffer)
@@ -294,14 +299,11 @@ def run_sequential(args, logger):
                 last_test_T = runner.t_env
                 for _ in range(n_test_runs):
                     episode_sample, _p, _sum = runner.run(test_mode=True)
-                    # g1r = th.max(episode_sample["subgoal"][0, :, 0, :11], dim=-1)[1]
-                    # g1c = th.max(episode_sample["subgoal"][0, :, 0, 11:], dim=-1)[1]
-                    # g2r = th.max(episode_sample["subgoal"][0, :, 1, :11], dim=-1)[1]
-                    # g2c = th.max(episode_sample["subgoal"][0, :, 1, 11:], dim=-1)[1]
-                    print(f'Acc/All: {Acc}/{Sum}')
-                    # print(f'low_reward: {episode_sample["low_reward"]}')
-                    # print(f'first obs {episode_sample["obs"][0,0,:,:23]}')
-                    # print(f'actions {episode_sample["actions"]}')
+                    # print(f'Acc/All: {Acc}/{Sum}')
+                    print(f'low_reward: {episode_sample["low_reward"]}')
+                    print(f'obs1 {episode_sample["obs"][0:,0]}')
+                    print(f'obs2 {episode_sample["obs"][0:,1]}')
+                    print(f'actions {episode_sample["actions"]}')
                     # print(f'ext reward {episode_sample["reward"]}')
                     # print(f'terminated {episode_sample["terminated"][0]}')
                     if args.mac == "offline_mac":

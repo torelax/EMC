@@ -1,11 +1,11 @@
 env: gridworld
 env_args:
-  episode_limit: 30 # 30
+  episode_limit: 200 # 30
   input_rows: 11
   input_cols: 12
   map_name: "wall4"
   penalty: True
-  penalty_amount: 2
+  penalty_amount: 0
   path: Null
   noise: False
   noise_num: 10
@@ -13,7 +13,7 @@ env_args:
 learner_log_interval: 2000
 log_interval: 2000
 runner_log_interval: 2000
-t_max: 305000  # 505000
+t_max: 2005000  # 505000
 test_interval: 5000
 test_nepisode: 5
 test_greedy: True

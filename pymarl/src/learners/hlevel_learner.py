@@ -63,8 +63,9 @@ class HLevelLearner:
             endIndex = batch["terminated"][i].squeeze().tolist().index(1)
             for j in range(endIndex - self.args.her_gap):
                 if j + count < batch.max_seq_length and batch['terminated'][i][j + count] == 0:
-                    _batch['subgoal'][i][j][0] = _batch['obs'][i][j + count][0][:self.args.subgoal_shape]
-                    _batch['subgoal'][i][j][1] = _batch['obs'][i][j + count][1][:self.args.subgoal_shape]
+                    # _batch['subgoal'][i][j][0] = _batch['subgoals'][i][j + count][0][:self.args.subgoal_shape]
+                    _batch['subgoals'][i][j][0] = _batch['subgoals'][i][j + count][0]
+                    _batch['subgoals'][i][j][1] = _batch['subgoals'][i][j + count][1]
                     high_rewards[i][j] = 0
                     for k in range(count):
                         high_rewards[i][j] += (self.args.gamma ** k) * _batch['reward'][i][j + k]
@@ -72,64 +73,65 @@ class HLevelLearner:
                 else:
                     break
             for j in range(endIndex - self.args.her_gap, endIndex + 1):
-                _batch['subgoal'][i][j][0] = _batch['obs'][i][endIndex+1][0][:self.args.subgoal_shape]
-                _batch['subgoal'][i][j][1] = _batch['obs'][i][endIndex+1][1][:self.args.subgoal_shape]
+                # _batch['subgoal'][i][j][0] = _batch['obs'][i][endIndex+1][0][:self.args.subgoal_shape]
+                _batch['subgoals'][i][j][0] = _batch['subgoals'][i][endIndex+1][0]
+                _batch['subgoals'][i][j][1] = _batch['subgoals'][i][endIndex+1][1]
                 high_rewards[i][j] = 0
                 for k in range(j, endIndex + 1):
                     high_rewards[i][j] += (self.args.gamma ** k) * _batch['reward'][i][k]
                 # high_rewards[i][j] = th.sum(_batch['reward'][i][j : endIndex + 1])
                 # pass
 
-        # print('old', batch['subgoal'][2])
-        # print('new', _batch['subgoal'][2])
         # Get the relevant quantities
+        avail_subgoals = batch['avail_subgoals']
         rewards = batch["reward"][:, :-1]
-        obs = batch['obs'][:, :, :, :self.args.subgoal_shape].reshape(batch.batch_size, batch.max_seq_length, -1)
-        # rewards = batch["reward"]
-        # rewards[:, 1:] = batch["reward"][:, :-1]
-        # rewards[:, 0] = 0
+        obs = batch['obs'].reshape(batch.batch_size, batch.max_seq_length, -1)
+        state = batch['state'].reshape(batch.batch_size, batch.max_seq_length, -1)
         terminated = batch["terminated"][:, :-1].float()
-        # terminated = batch["terminated"].float()
-        # print('--->filled\n', batch["filled"][0])
         mask = batch["filled"][:, :-1].float()
-        # print(mask.shape)
-        # print(mask[-1])
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
 
-        # print(batch['terminated'][-1])
-        # print(mask[-1])
         # batch['subgoal'][:, :-1] = batch['subgoal'][:, 1:]
-        subgoals = _batch['subgoal'].reshape((batch.batch_size, batch.max_seq_length, -1))
-        Goal = _batch['Goal'].reshape((batch.batch_size, batch.max_seq_length, -1))
+        # print(batch['subgoals'].shape)
+        subgoal = batch['subgoals'].reshape((batch.batch_size, batch.max_seq_length, -1, 1))[:,:-1,:]
+        Goal = batch['Goal'].reshape((batch.batch_size, batch.max_seq_length, -1))[:,:-1]
         # states = batch['subgoal'].reshape((batch.batch_size, batch.max_seq_length, -1))
 
         self.mac.init_hidden(batch.batch_size)
-        subg_r, subg_c = self.mac.forward(_batch, batch.max_seq_length, batch_inf=True)
-
-        subg_r = subg_r.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
-        subg_c = subg_c.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
-        # Gumbel Softmax
-        # print(subg_r[3:6])
-        subg_r = gumbel_softmax(subg_r)
-        subg_c = gumbel_softmax(subg_c)
-
+        # subg_r, subg_c = self.mac.forward(_batch, batch.max_seq_length, batch_inf=True)
+        # # Gumbel Softmax
+        # subg_r = subg_r.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
+        # subg_c = subg_c.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
         
-        subgoal = th.cat([subg_r, subg_c], dim=-1)
-        subgoal = subgoal.reshape(batch.batch_size, batch.max_seq_length, -1)
+        # subg_r = gumbel_softmax(subg_r)
+        # subg_c = gumbel_softmax(subg_c)
+        # subgoal = th.cat([subg_r, subg_c], dim=-1)
+        sg_qvals = self.mac.forward(batch, batch.max_seq_length, batch_inf=True)
+        # print(subgoal.shape, sg_qvals.shape)
+        chosen_sg_qvals = th.gather(sg_qvals[:, :-1], dim=3, index=subgoal).squeeze(3)
+
+        x_sg_qvals = sg_qvals.clone().detach()
+        x_sg_qvals[avail_subgoals == 0] = -9999999
+        max_subgoal_qvals, max_subgoal_index = x_sg_qvals[:, :-1].max(dim=3)
+
+        max_subgoal_index = max_subgoal_index.detach().unsqueeze(3)
+        is_max_action = (max_subgoal_index == subgoal).int().float()
+
+
         self.target_mac.init_hidden(batch.batch_size)
-        # target_subg_ = self.target_mac.forward(batch, batch.max_seq_length, batch_inf=True)[:, 1:, ...]
+        target_sg_qvals = self.target_mac.forward(batch, batch.max_seq_length, batch_inf=True)[:, 1:, ...]
 
         # Max over target Q-Values
-        # if self.args.double_q:
-        #     # Get actions that maximise live Q (for double q-learning)
-        #     mac_out_detach = mac_out.clone().detach()
-        #     mac_out_detach[avail_actions == 0] = -9999999
-        #     cur_max_actions = mac_out_detach[:, 1:].max(dim=3, keepdim=True)[1]
-        #     target_max_qvals = th.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
-        # else:
-        #     target_max_qvals = target_mac_out.max(dim=3)[0]
+        if self.args.double_q:
+            # Get actions that maximise live Q (for double q-learning)
+            sg_qvals_detach = sg_qvals.clone().detach()
+            sg_qvals_detach[avail_subgoals == 0] = -9999999
+            cur_max_actions = sg_qvals_detach[:, 1:].max(dim=3, keepdim=True)[1]
+            target_max_qvals = th.gather(target_sg_qvals, 3, cur_max_actions).squeeze(3)
+        else:
+            target_max_qvals = target_sg_qvals.max(dim=3)[0]
         # Mixer
-        Qtot : th.Tensor = self.mixer(obs[:, :-1], Goal[:, :-1], subgoals[:, :-1])
+        Qtot_sg : th.Tensor = self.mixer(state[:, :-1], Goal, chosen_sg_qvals)
         # print('obs', obs[-1,3])
         # print('subg_', subg_[-1,3])
         # print('vtot_goal', self.mixer(subg_)[-1,3])
@@ -137,26 +139,24 @@ class HLevelLearner:
 
         # @TODO off policy correction
         # max_{g'}Q'(s', g')---> Q_target(s', pi_h(s'))
-        subg_r, subg_c = self.target_mac.forward(_batch, batch.max_seq_length, batch_inf=True)
+        # subg_r, subg_c = self.target_mac.forward(_batch, batch.max_seq_length, batch_inf=True)
 
-        subg_r = subg_r.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
-        subg_c = subg_c.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
-        # Gumbel Softmax
-        # TODO next_sg 不需要gumbel softmax保留梯度
-        subg_r = gumbel_softmax(subg_r)
-        subg_c = gumbel_softmax(subg_c)
+        # subg_r = subg_r.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
+        # subg_c = subg_c.reshape(batch.batch_size * batch.max_seq_length * self.args.n_agents, -1)
+        # # Gumbel Softmax
+        # # TODO next_sg 不需要gumbel softmax保留梯度
+        # subg_r = gumbel_softmax(subg_r)
+        # subg_c = gumbel_softmax(subg_c)
 
-        next_sg = th.cat([subg_r, subg_c], dim=-1)
-        next_sg = next_sg.reshape(batch.batch_size, batch.max_seq_length, -1)[:, 1:, ...]
+        # next_sg = th.cat([subg_r, subg_c], dim=-1)
+        # next_sg = next_sg.reshape(batch.batch_size, batch.max_seq_length, -1)[:, 1:, ...]
+        # next_sg = self.target_mac.forward(_batch, batch.max_seq_length, batch_inf=True)
+        targetQtot_sg : th.Tensor = self.target_mixer(state[:, 1:], Goal, target_max_qvals)
 
-        targetQtot : th.Tensor = self.target_mixer(obs[:, 1:], Goal[:, 1:], next_sg)
-
-        # print('--->terminated\n', terminated[:, -1])
-        # print(high_rewards.shape)
         # print(terminated.shape)
-        # print(targetQtot.shape)
-        target = high_rewards + self.args.gamma * (1 - terminated) * targetQtot
-        td_error = (target.detach() - Qtot)
+        # print(Qtot_sg.shape, targetQtot_sg.shape, high_rewards.shape, terminated.shape)
+        target = high_rewards + self.args.gamma * (1 - terminated) * targetQtot_sg
+        td_error = (target.detach() - Qtot_sg)
         # masked_hit_prob = th.mean(is_max_action, dim=2) * mask
         # hit_prob = masked_hit_prob.sum() / mask.sum()
         mask = mask.expand_as(td_error)
@@ -179,14 +179,14 @@ class HLevelLearner:
         # Optimise
         self.m_optimiser.zero_grad()
         mixer_loss.backward()
-        # m_grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
+        m_grad_norm = th.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
         self.m_optimiser.step()
 
         # lowLoss: -Q(S, g, G)
-        subgoal_loss : th.Tensor = -th.log(self.target_mixer(obs[:, :-1], Goal[:, :-1], subgoal[:, :-1]))
-        masked_sg_loss = (subgoal_loss * mask).sum() / mask.sum()
-        self.g_optimiser.zero_grad()
-        masked_sg_loss.backward()
+        # subgoal_loss : th.Tensor = -th.log(self.target_mixer(obs[:, :-1], Goal[:, :-1], subgoal[:, :-1]))
+        # masked_sg_loss = (subgoal_loss * mask).sum() / mask.sum()
+        # self.g_optimiser.zero_grad()
+        # masked_sg_loss.backward()
         # for parms in self.mac.parameters():	
         #         # print('-->name:', name)
         #         print('-->para:', parms)
@@ -201,11 +201,11 @@ class HLevelLearner:
             self.last_target_update_episode = episode_num
 
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
-            print('-->goal_loss:\n', masked_sg_loss)
+            print('-->goal_loss:\n', mixer_loss)
             self.logger.log_stat("hlevel:mixer_loss", mixer_loss.item(), t_env)
-            self.logger.log_stat("hlevel:subgoal_loss", masked_sg_loss.item(), t_env)
+            # self.logger.log_stat("hlevel:subgoal_loss", masked_sg_loss.item(), t_env)
             # self.logger.log_stat("hlevel:g_grad_norm", g_grad_norm, t_env)
-            # self.logger.log_stat("hlevel:m_grad_norm", m_grad_norm, t_env)
+            self.logger.log_stat("hlevel:m_grad_norm", m_grad_norm, t_env)
             # self.logger.log_stat("Mixer-Vtot(5,5,5,6)", vtot5556, t_env)
             mask_elems = mask.sum().item()
             # self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)

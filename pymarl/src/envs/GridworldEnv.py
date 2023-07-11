@@ -35,8 +35,7 @@ class GridworldEnv:
             self.state_shape = self.obs_shape * 2
         
         self.subgoal_space = range(self.subgoal_shape)
-        self.heat_map = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
-
+        self.heat_map = [[[0 for _ in range(self.cols)] for _ in range(self.rows)] for _ in range(self.n_agents)]
         
         self.center = self.cols // 2
         ###larger gridworld
@@ -50,8 +49,8 @@ class GridworldEnv:
         self.obstacleV = [[row, self.center] for row in range(2, self.rows - 3)]
 
         # 两面墙
-        self.wallH = [self.rows // 2, 2, self.cols - 3]
-        self.wallV = [self.cols // 2, 2, self.rows - 3]
+        self.wallH = [self.rows // 2, 2, self.cols - 3] # 5, 2-9
+        self.wallV = [self.cols // 2, 2, self.rows - 3] # 2-8,6
         self.obstacle_index = self.obstacleH + self.obstacleV
 
         self.action_space = [0, 1, 2, 3, 4]
@@ -111,7 +110,7 @@ class GridworldEnv:
 
         self._update_obs()
         self._episode_steps=0
-        self.desired_goal = np.array([[5, 5], [5, 6]])
+        self.desired_goal = np.array([[self.rows // 2 + 2, self.center + 2], [self.rows // 2 - 1, self.center - 2]])
 
         return self.desired_goal
 
@@ -136,6 +135,12 @@ class GridworldEnv:
                     if pos_2[0]+m == self.wallH[0] and pos_2[1]+n <= self.wallH[2] and pos_2[1]+n >= self.wallH[1]:
                         self.obs_2[self.obs_range+m][self.obs_range+n] = -1
                     elif pos_2[1]+n == self.wallV[0] and pos_2[0]+m <= self.wallV[2] and pos_2[0]+m >= self.wallV[1]:
+                        self.obs_2[self.obs_range+m][self.obs_range+n] = -1
+                    
+                    # out of the map
+                    if pos_1[0] + m <= 0 or pos_1[0] + m >= self.rows or pos_1[1] + n <= 0 or pos_1[1] + n >= self.cols:
+                        self.obs_1[self.obs_range+m][self.obs_range+n] = -1
+                    if pos_2[0] + m <= 0 or pos_2[0] + m >= self.rows or pos_2[1] + n <= 0 or pos_2[1] + n >= self.cols:
                         self.obs_2[self.obs_range+m][self.obs_range+n] = -1
             if abs(pos_2[0] - pos_1[0]) <= self.obs_range and abs(pos_2[1] - pos_1[1]) <= self.obs_range:
                 self.obs_1[self.obs_range + pos_2[0] - pos_1[0]][self.obs_range + pos_2[1] - pos_1[1]] = 1
@@ -298,55 +303,51 @@ class GridworldEnv:
         self._update_obs()
         self._episode_steps +=1
 
-        self.heat_map[self.index[0][0]][self.index[0][1]] += 1
-        self.heat_map[self.index[1][0]][self.index[1][1]] += 1
-
+        self.heat_map[0][self.index[0][0]][self.index[0][1]] += 1
+        self.heat_map[1][self.index[1][0]][self.index[1][1]] += 1
 
 
         # print('Next state is {}'.format(self.state))
         if self.penalty:
-            """ if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center] and self.arrive1 == 0:
-                self.arrive1 = 1
-                reward = 30
-                Terminated = False
-                env_info = {'battle_won': False}
-            elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center] and self.arrive2 == 0:
-                self.arrive2 = 1
-                reward = 20
-                Terminated = False
-                env_info = {'battle_won': False} """
-            """ if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] != [self.rows // 2, self.center]:
-                reward = -10
-                Terminated = False
-                env_info = {'battle_won': False}
-            elif self.index[0] != [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center]:
-                reward = -10
-                Terminated = False
-                env_info = {'battle_won': False} """
-            if self.index[1] == [self.rows // 2, self.center - 1] and self.index[0] == [self.rows // 2 + 1, self.center]:
-                reward = 50
+            if self.index[1] == [self.rows // 2 - 1, self.center - 2] and self.index[0] == [self.rows // 2 + 2, self.center + 2]:
+                reward = 100
                 Terminated = True
                 env_info={'battle_won': True}
-                """ if self.index[0] == [self.rows // 2, self.center - 1] and self.index[1] == [self.rows // 2, self.center]:
-                    # self.arrive1, self.arrive2 = 1, 1
-                    reward = 50
-                    Terminated=True
-                    env_info={'battle_won': True}
-                elif (self.index[0] == [3, 1] or self.index[1] == [3, 1]) and self.arrive1 == 0:
-                    self.arrive1 = 1
-                    reward = 5
-                    Terminated = False
-                    env_info = {'battle_won': False}
-                elif (self.index[0] == [8, 10] or self.index[1] == [8, 10]) and self.arrive2 == 0:
-                    self.arrive2 = 1
-                    reward = 5
-                    Terminated = False
-                    env_info = {'battle_won': False}
-                elif (self.index[0] == [10, 0] or self.index[1] == [10, 0]) and self.arrive3 == 0:
-                    self.arrive3 = 1
-                    reward = 10
-                    Terminated = False
-                    env_info = {'battle_won': False} """
+            elif self.index[1] == [self.rows // 2 - 1, self.center - 2] and self.arrive2 == 0:
+                # 5, 4
+                self.arrive2 = 1
+                # print(self.index)
+                reward = 200
+                Terminated = False
+                env_info={'battle_won': False}
+            elif self.index[0] == [self.rows // 2 + 2, self.center + 2] and self.arrive1 == 0:
+                # 7, 8
+                self.arrive1 = 1
+                # print(self.index)
+                reward = 200
+                Terminated = False
+                env_info={'battle_won': False}
+            elif self.index[0][0] == self.rows // 2 and self.index[0][1] in [0, 1, self.cols-1, self.cols-2]:
+                # print('------------------------------>get 8')
+                # self.arrive1 = 1  
+                reward = 1
+                Terminated = False
+                env_info={'battle_won': False}
+            elif self.index[0][1] == self.cols // 2 and self.index[0][0] in [0, 1, self.rows-1, self.rows-2]:
+                # self.arrive1 = 1
+                reward = 1
+                Terminated = False
+                env_info={'battle_won': False}
+            elif self.index[1][0] == self.rows // 2 and self.index[1][1] in [0, 1, self.cols-1, self.cols-2]:
+                # self.arrive1 = 1
+                reward = 1
+                Terminated = False
+                env_info={'battle_won': False}
+            elif self.index[1][1] == self.cols // 2 and self.index[1][0] in [0, 1, self.rows-1, self.rows-2]:
+                # self.arrive1 = 1
+                reward = 1
+                Terminated = False
+                env_info={'battle_won': False}
             else:
                 # reward = -self.penalty_amount
                 reward = -self.penalty_amount
@@ -368,10 +369,10 @@ class GridworldEnv:
         if self._episode_steps >= self.episode_limit:
             Terminated= True
         if Terminated and self.path is not None:
-            if self.num>1 and self.num % 500 == 0:
+            if self.num>1 and self.num % 100 == 0:
                 self.save()
                 print("save heat map")
-                self.heat_map = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+                self.heat_map = [[[0 for _ in range(self.cols)] for _ in range(self.rows)] for _ in range(self.n_agents)]
         return reward,Terminated,env_info
 
     def close(self):

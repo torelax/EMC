@@ -4,7 +4,7 @@ train_delay_steps: 0
 action_selector: "epsilon_greedy"
 epsilon_start: 1.0
 epsilon_finish: 0.02
-epsilon_anneal_time: 50000
+epsilon_anneal_time: 200000
 
 runner: "episode"
 
